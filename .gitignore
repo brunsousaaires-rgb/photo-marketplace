@@ -38,3 +38,4 @@ htmlcov/
 # Assets
 uploads/
 temp/
+*.tsbuildinfo

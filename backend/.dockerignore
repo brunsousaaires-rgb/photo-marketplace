@@ -1,0 +1,7 @@
+node_modules
+dist
+uploads/originals/*
+uploads/previews/*
+uploads/thumbs/*
+!uploads/**/.gitkeep
+.env
