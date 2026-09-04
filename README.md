@@ -1,122 +1,139 @@
 # 📸 Photo Marketplace
 
-Uma plataforma web moderna e profissional para venda de fotos em alta resolução com marca d'água automática, autenticação segura, processamento de pagamentos e sistema de download HD.
+Uma plataforma web moderna e profissional para venda de fotos em alta resolução, com marca d'água automática nas pré-visualizações, autenticação segura, pagamento com Stripe e download em HD liberado imediatamente após a compra.
 
-## ✨ Features Principais
+## ✨ Features
 
-- 🔐 **Autenticação**: Sistema de login/registro seguro com JWT
-- 📷 **Upload de Fotos**: Interface intuitiva para upload com validação
-- 💧 **Marca d'Água Automática**: Aplicação automática de marca d'água em pré-visualizações
-- 🛒 **Carrinho de Compras**: Gerenciamento completo de carrinho
-- 💳 **Pagamentos**: Integração com Stripe/PayPal
-- 📥 **Download HD**: Sistema de download em múltiplas resoluções
-- 👤 **Perfil de Fotógrafo**: Dashboard com analytics e gerenciamento de portfólio
-- 🔍 **Galeria Responsiva**: Visualização profissional de fotos
+- 🔐 **Autenticação** — registro/login com JWT, contas de comprador e fotógrafo
+- 📷 **Upload de fotos** — interface com arrastar/soltar, validação de tipo e tamanho
+- 💧 **Marca d'água automática** — aplicada em tempo real com `sharp` em toda pré-visualização pública
+- 🖼️ **Galeria responsiva** — busca, filtro por categoria e ordenação por preço/recência
+- 🛒 **Carrinho de compras** — persistente no navegador
+- 💳 **Pagamentos com Stripe Checkout** — ou modo demo automático caso as chaves não estejam configuradas
+- 📥 **Download HD** — liberado apenas após confirmação do pagamento, servido por rota autenticada (nunca por URL pública)
+- 📊 **Painel do fotógrafo** — portfólio, receita, vendas e downloads
+- 🗂️ **Minhas compras** — histórico com download a qualquer momento
 
-## 🛠️ Stack Tecnológico
+## 🛠️ Stack
 
-### Frontend
-- **Next.js 14** - React framework com SSR
-- **TypeScript** - Tipagem estática
-- **Tailwind CSS** - Estilização responsiva
-- **Shadcn UI** - Componentes profissionais
-- **React Query** - Gerenciamento de estado
+**Frontend:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Zustand
+**Backend:** Node.js · Express · TypeScript · Prisma · PostgreSQL · Sharp · Stripe
+**Infra:** Docker Compose · armazenamento local em disco (padrão) ou AWS S3 (opcional)
 
-### Backend
-- **Node.js + Express** OU **Python FastAPI**
-- **PostgreSQL** - Banco de dados relacional
-- **JWT** - Autenticação
-- **AWS S3** - Armazenamento de imagens
-
-### Infra
-- **Docker** - Containerização
-- **Vercel/AWS** - Hospedagem
-
-## 📋 Estrutura do Projeto
+## 📋 Estrutura
 
 ```
 photo-marketplace/
-├── frontend/                 # Aplicação Next.js
-│   ├── app/                 # Rotas e layouts
-│   ├── components/          # Componentes React
-│   ├── lib/                 # Utilitários
-│   ├── public/              # Assets estáticos
-│   └── styles/              # CSS global
-├── backend/                 # API Express/FastAPI
+├── frontend/            # Next.js (App Router)
+│   ├── app/              # Páginas e rotas
+│   ├── components/       # Componentes React (UI, galeria, upload...)
+│   └── lib/               # API client, auth, carrinho, tipos
+├── backend/              # API Express
 │   ├── src/
-│   │   ├── models/          # Modelos de dados
-│   │   ├── routes/          # Endpoints
-│   │   ├── controllers/      # Lógica de negócio
-│   │   ├── middleware/       # Autenticação, validação
-│   │   └── utils/           # Utilitários
-│   └── config/              # Configurações
-├── docker-compose.yml       # Orquestração
-└── README.md
+│   │   ├── routes/        # Endpoints
+│   │   ├── controllers/    # Lógica de negócio
+│   │   ├── middleware/     # Autenticação, upload, erros
+│   │   └── utils/          # JWT, storage, marca d'água (sharp)
+│   ├── prisma/            # Schema, migrations e seed
+│   └── uploads/            # Armazenamento local (originais, previews, thumbs)
+└── docker-compose.yml
 ```
 
-## 🚀 Quick Start
-
-### Pré-requisitos
-- Node.js 18+
-- Python 3.9+ (se usar FastAPI)
-- Docker & Docker Compose
-- PostgreSQL
-
-### Instalação
+## 🚀 Quick Start (Docker)
 
 ```bash
-# Clone o repositório
 git clone https://github.com/brunsousaaires-rgb/photo-marketplace.git
 cd photo-marketplace
 
-# Instale dependências do frontend
-cd frontend
-npm install
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 
-# Instale dependências do backend
-cd ../backend
-npm install  # ou pip install -r requirements.txt
-
-# Configure variáveis de ambiente
-cp .env.example .env
-
-# Inicie com Docker Compose
-docker-compose up
+docker compose up --build
 ```
 
-## 📚 Documentação
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5000
 
-- [Frontend Setup](./frontend/README.md)
-- [Backend Setup](./backend/README.md)
-- [API Documentation](./backend/API.md)
-- [Database Schema](./backend/SCHEMA.md)
+Depois de subir os containers, rode as migrations e o seed (dados de exemplo) dentro do container do backend:
 
-## 📝 Features Roadmap
+```bash
+docker compose exec backend npx prisma migrate deploy
+docker compose exec backend npm run seed
+```
 
-- [ ] Autenticação com email/senha
+## 🧑‍💻 Quick Start (local, sem Docker)
+
+Pré-requisitos: Node.js 18+, PostgreSQL 14+.
+
+```bash
+# Backend
+cd backend
+npm install
+cp .env.example .env          # ajuste DATABASE_URL se necessário
+npx prisma migrate dev
+npm run seed                  # cria contas e fotos de exemplo
+npm run dev                   # http://localhost:5000
+
+# Frontend (em outro terminal)
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev                   # http://localhost:3000
+```
+
+### Contas de demonstração (criadas pelo seed)
+
+| Papel      | E-mail                    | Senha          |
+|------------|----------------------------|----------------|
+| Fotógrafo  | fotografo@exemplo.com      | fotografo123   |
+| Comprador  | comprador@exemplo.com      | comprador123   |
+
+## 💳 Pagamentos
+
+Configure `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` em `backend/.env` para usar o Stripe Checkout real. **Sem essas chaves**, o checkout roda em **modo demo**: o pedido é confirmado automaticamente para permitir testar o fluxo completo (carrinho → pagamento → download HD) localmente.
+
+Para receber o webhook do Stripe em desenvolvimento:
+
+```bash
+stripe listen --forward-to localhost:5000/api/payments/webhook
+```
+
+## 🔒 Como funciona a proteção das fotos
+
+1. No upload, o backend gera três versões da imagem com `sharp`: **thumbnail** e **preview** (ambas com marca d'água diagonal repetida, servidas publicamente) e o **arquivo original** (guardado sem marca d'água).
+2. O arquivo original nunca é exposto por URL pública — só é servido pela rota `GET /api/photos/:id/download`, protegida por autenticação, que verifica se o usuário tem um pedido **pago** contendo aquela foto (ou é o próprio fotógrafo).
+3. Após a confirmação do pagamento, o botão de download em HD é liberado imediatamente na página da foto, no checkout e no histórico de compras.
+
+## ☁️ Armazenamento
+
+Por padrão as imagens são salvas em disco (`backend/uploads`). Para usar S3 em produção, defina no `.env` do backend:
+
+```
+STORAGE_DRIVER=s3
+AWS_REGION=...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+S3_BUCKET=...
+```
+
+## 📝 Roadmap
+
+- [x] Autenticação com e-mail/senha
+- [x] Upload e validação de fotos
+- [x] Marca d'água automática
+- [x] Carrinho de compras
+- [x] Integração Stripe (com modo demo)
+- [x] Download HD protegido
+- [x] Painel do fotógrafo com analytics
+- [x] Busca e filtros por categoria/preço
 - [ ] Autenticação social (Google, GitHub)
-- [ ] Upload e validação de fotos
-- [ ] Geração automática de marca d'água
-- [ ] Sistema de carrinho
-- [ ] Integração Stripe
-- [ ] Dashboard do fotógrafo
 - [ ] Sistema de avaliações
-- [ ] Busca e filtros
-- [ ] Analytics
-- [ ] Mobile responsivo
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Veja [CONTRIBUTING.md](CONTRIBUTING.md)
+- [ ] Coleções/álbuns
 
 ## 📄 Licença
 
-MIT License - veja [LICENSE](LICENSE)
+MIT License — veja [LICENSE](LICENSE)
 
 ## 👥 Autores
 
 - [@brunsousaaires-rgb](https://github.com/brunsousaaires-rgb)
-
----
-
-**Começando?** Veja nossa [documentação completa](./docs/GETTING_STARTED.md)
