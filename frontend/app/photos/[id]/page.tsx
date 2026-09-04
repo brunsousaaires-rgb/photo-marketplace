@@ -3,16 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Check, Download, Lock, ShoppingBag, ArrowLeft, Ruler, User as UserIcon } from 'lucide-react';
+import { Check, Download, Lock, ShoppingBag, ArrowLeft, Ruler, CalendarDays, MapPin } from 'lucide-react';
 import { apiFetch, resolveFileUrl, downloadUrl } from '@/lib/api';
 import type { Photo } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useCartStore } from '@/lib/cart-store';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/lib/utils';
 import { toast } from '@/lib/toast-store';
+import { sportInfo } from '@/lib/sports';
 import Link from 'next/link';
+
+function formatEventDate(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+}
 
 export default function PhotoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,16 +43,27 @@ export default function PhotoDetailPage() {
       <div className="container-page py-24 text-center">
         <p className="text-ink-900/60">Foto não encontrada.</p>
         <Link href="/" className="mt-3 inline-block text-sm font-medium text-ink-950 underline">
-          Voltar para a galeria
+          Voltar para a busca
         </Link>
       </div>
     );
   }
 
+  const sport = photo.event ? sportInfo(photo.event.sport) : null;
+
+  function handleAdd() {
+    if (!photo) return;
+    add(photo);
+    toast({ title: 'Adicionado ao carrinho', description: photo.title, variant: 'success' });
+  }
+
   return (
-    <div className="container-page py-10">
-      <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-ink-900/60 hover:text-ink-950">
-        <ArrowLeft className="h-4 w-4" /> Voltar para a galeria
+    <div className="container-page py-10 pb-24 sm:pb-10">
+      <Link
+        href={photo.event ? `/eventos/${photo.event.id}` : '/'}
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-ink-900/60 hover:text-ink-950"
+      >
+        <ArrowLeft className="h-4 w-4" /> {photo.event ? `Voltar para ${photo.event.title}` : 'Voltar para a busca'}
       </Link>
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.4fr_1fr]">
@@ -64,23 +79,34 @@ export default function PhotoDetailPage() {
         </div>
 
         <div>
-          <Badge className="mb-3 bg-accent-500/15 text-accent-600">{photo.category}</Badge>
-          <h1 className="font-display text-3xl font-medium text-ink-950">{photo.title}</h1>
+          {sport && (
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-accent-500/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-accent-600">
+              {sport.emoji} {sport.label}
+            </span>
+          )}
+          <h1 className="font-display text-3xl uppercase tracking-wide text-ink-950">{photo.title}</h1>
           {photo.description && <p className="mt-3 text-ink-900/60">{photo.description}</p>}
 
-          <div className="mt-5 flex flex-wrap gap-4 text-sm text-ink-900/60">
-            <span className="flex items-center gap-1.5">
-              <UserIcon className="h-4 w-4" /> {photo.photographer?.name}
-            </span>
+          <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-ink-900/60">
+            {photo.event && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="h-4 w-4" /> {formatEventDate(photo.event.eventDate)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4" /> {photo.event.location}
+                </span>
+              </>
+            )}
             <span className="flex items-center gap-1.5">
               <Ruler className="h-4 w-4" /> {photo.width} × {photo.height}px
             </span>
           </div>
 
-          <div className="mt-8 rounded-2xl border border-black/5 bg-white p-6 shadow-card">
+          <div className="mt-8 hidden rounded-2xl border border-black/5 bg-white p-6 shadow-card sm:block">
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-ink-900/50">Download em HD</span>
-              <span className="font-display text-3xl font-semibold text-ink-950">{formatPrice(photo.price)}</span>
+              <span className="font-display text-3xl text-ink-950">{formatPrice(photo.price)}</span>
             </div>
 
             {photo.purchased ? (
@@ -91,16 +117,7 @@ export default function PhotoDetailPage() {
               </a>
             ) : (
               <div className="mt-5 flex flex-col gap-3">
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="w-full"
-                  disabled={has}
-                  onClick={() => {
-                    add(photo);
-                    toast({ title: 'Adicionado ao carrinho', description: photo.title, variant: 'success' });
-                  }}
-                >
+                <Button variant="secondary" size="lg" className="w-full" disabled={has} onClick={handleAdd}>
                   {has ? (
                     <>
                       <Check className="h-4 w-4" /> No carrinho
@@ -124,6 +141,29 @@ export default function PhotoDetailPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Barra fixa de compra no mobile, acima da navegação inferior */}
+      <div className="fixed inset-x-0 bottom-16 z-40 flex items-center gap-3 border-t border-black/10 bg-white/95 p-3 backdrop-blur sm:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] text-ink-900/50">Download em HD</p>
+          <p className="font-display text-lg text-ink-950">{formatPrice(photo.price)}</p>
+        </div>
+        {photo.purchased ? (
+          <a href={downloadUrl(photo.id)} target="_blank" rel="noreferrer" className="shrink-0">
+            <Button variant="secondary">
+              <Download className="h-4 w-4" /> Baixar
+            </Button>
+          </a>
+        ) : has ? (
+          <Button variant="secondary" className="shrink-0" onClick={() => router.push('/cart')}>
+            Ver carrinho
+          </Button>
+        ) : (
+          <Button variant="secondary" className="shrink-0" onClick={handleAdd}>
+            <ShoppingBag className="h-4 w-4" /> Comprar
+          </Button>
+        )}
       </div>
     </div>
   );

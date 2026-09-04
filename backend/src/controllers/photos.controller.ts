@@ -11,7 +11,6 @@ function serializePhoto(photo: any) {
     id: photo.id,
     title: photo.title,
     description: photo.description,
-    category: photo.category,
     price: Number(photo.price),
     width: photo.width,
     height: photo.height,
@@ -22,26 +21,32 @@ function serializePhoto(photo: any) {
     photographer: photo.photographer
       ? { id: photo.photographer.id, name: photo.photographer.name, avatarUrl: photo.photographer.avatarUrl }
       : undefined,
+    event: photo.event
+      ? { id: photo.event.id, title: photo.event.title, sport: photo.event.sport, location: photo.event.location, eventDate: photo.event.eventDate }
+      : undefined,
   };
 }
 
 const listQuerySchema = z.object({
   q: z.string().optional(),
-  category: z.string().optional(),
+  sport: z.string().optional(),
+  eventId: z.string().uuid().optional(),
   sort: z.enum(['recent', 'price_asc', 'price_desc']).optional().default('recent'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(48).optional().default(12),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(24),
 });
 
 export async function listPhotos(req: Request, res: Response) {
-  const { q, category, sort, page, pageSize } = listQuerySchema.parse(req.query);
+  const { q, sport, eventId, sort, page, pageSize } = listQuerySchema.parse(req.query);
 
   const where: any = {};
-  if (category && category !== 'todos') where.category = category;
+  if (eventId) where.eventId = eventId;
+  if (sport && sport !== 'todos') where.event = { sport };
   if (q) {
     where.OR = [
       { title: { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
+      { event: { title: { contains: q, mode: 'insensitive' } } },
     ];
   }
 
@@ -54,7 +59,7 @@ export async function listPhotos(req: Request, res: Response) {
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { photographer: true },
+      include: { photographer: true, event: true },
     }),
     prisma.photo.count({ where }),
   ]);
@@ -68,17 +73,8 @@ export async function listPhotos(req: Request, res: Response) {
   });
 }
 
-export async function getCategories(_req: Request, res: Response) {
-  const rows = await prisma.photo.groupBy({ by: ['category'], _count: { category: true } });
-  res.json({
-    categories: rows
-      .map((r) => ({ name: r.category, count: r._count.category }))
-      .sort((a, b) => b.count - a.count),
-  });
-}
-
 export async function getPhoto(req: Request, res: Response) {
-  const photo = await prisma.photo.findUnique({ where: { id: req.params.id }, include: { photographer: true } });
+  const photo = await prisma.photo.findUnique({ where: { id: req.params.id }, include: { photographer: true, event: true } });
   if (!photo) throw new ApiError(404, 'Foto não encontrada.');
 
   let purchased = false;
@@ -97,9 +93,9 @@ export async function getPhoto(req: Request, res: Response) {
 }
 
 const uploadSchema = z.object({
+  eventId: z.string().uuid('Selecione um evento.'),
   title: z.string().min(2),
   description: z.string().optional(),
-  category: z.string().optional().default('outros'),
   price: z.coerce.number().positive('O preço deve ser maior que zero.'),
 });
 
@@ -107,6 +103,10 @@ export async function uploadPhoto(req: Request, res: Response) {
   const data = uploadSchema.parse(req.body);
   const file = req.file;
   if (!file) throw new ApiError(400, 'Envie um arquivo de imagem.');
+
+  const event = await prisma.event.findUnique({ where: { id: data.eventId } });
+  if (!event) throw new ApiError(404, 'Evento não encontrado.');
+  if (event.photographerId !== req.user!.userId) throw new ApiError(403, 'Este evento não pertence a você.');
 
   const id = uuid();
   const originalMeta = await readOriginalMeta(file.buffer);
@@ -127,9 +127,9 @@ export async function uploadPhoto(req: Request, res: Response) {
     data: {
       id,
       photographerId: req.user!.userId,
+      eventId: event.id,
       title: data.title,
       description: data.description,
-      category: data.category || 'outros',
       price: data.price,
       originalKey,
       previewKey,
@@ -137,7 +137,7 @@ export async function uploadPhoto(req: Request, res: Response) {
       width: originalMeta.width || preview.width,
       height: originalMeta.height || preview.height,
     },
-    include: { photographer: true },
+    include: { photographer: true, event: true },
   });
 
   res.status(201).json({ photo: serializePhoto(photo) });
@@ -147,7 +147,7 @@ export async function myPhotos(req: Request, res: Response) {
   const photos = await prisma.photo.findMany({
     where: { photographerId: req.user!.userId },
     orderBy: { createdAt: 'desc' },
-    include: { photographer: true },
+    include: { photographer: true, event: true },
   });
   res.json({ items: photos.map(serializePhoto) });
 }

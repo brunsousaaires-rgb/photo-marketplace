@@ -18,6 +18,7 @@ enum OrderStatus {
   FAILED
 }
 
+// Esportes são strings livres (não enum do banco) validadas em src/utils/sports.ts, para facilitar expansão.
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -30,19 +31,43 @@ model User {
   updatedAt    DateTime @updatedAt
 
   photos Photo[]
+  events Event[]
   orders Order[]
 
   @@map("users")
+}
+
+model Event {
+  id             String   @id @default(uuid())
+  photographerId String
+  photographer   User     @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+
+  title     String
+  sport     String
+  location  String
+  eventDate DateTime
+  coverKey  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  photos Photo[]
+
+  @@index([sport])
+  @@index([photographerId])
+  @@index([eventDate])
+  @@map("events")
 }
 
 model Photo {
   id             String   @id @default(uuid())
   photographerId String
   photographer   User     @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   title       String
   description String?
-  category    String   @default("outros")
   price       Decimal  @db.Decimal(10, 2)
 
   originalKey  String
@@ -57,7 +82,7 @@ model Photo {
 
   orderItems OrderItem[]
 
-  @@index([category])
+  @@index([eventId])
   @@index([photographerId])
   @@map("photos")
 }

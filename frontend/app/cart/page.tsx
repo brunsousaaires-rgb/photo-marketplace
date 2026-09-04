@@ -48,11 +48,11 @@ export default function CartPage() {
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-ink-950/5">
           <ShoppingBag className="h-7 w-7 text-ink-900/40" />
         </span>
-        <h1 className="mt-5 font-display text-2xl font-medium text-ink-950">Seu carrinho está vazio</h1>
-        <p className="mt-1 text-ink-900/50">Explore a galeria e adicione fotos que você quer baixar em HD.</p>
+        <h1 className="mt-5 font-display text-2xl uppercase tracking-wide text-ink-950">Seu carrinho está vazio</h1>
+        <p className="mt-1 text-ink-900/50">Explore os eventos e adicione fotos que você quer baixar em HD.</p>
         <Link href="/" className="mt-6">
           <Button variant="secondary" size="lg">
-            Explorar fotos
+            Buscar eventos
           </Button>
         </Link>
       </div>
@@ -60,25 +60,25 @@ export default function CartPage() {
   }
 
   return (
-    <div className="container-page py-10">
-      <h1 className="font-display text-3xl font-medium text-ink-950">Carrinho</h1>
+    <div className="container-page py-10 pb-28 sm:pb-10">
+      <h1 className="font-display text-3xl uppercase tracking-wide text-ink-950">Carrinho</h1>
       <p className="mt-1 text-ink-900/50">{items.length} foto(s) selecionada(s) para compra.</p>
 
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
         <div className="divide-y divide-black/5 rounded-2xl border border-black/5 bg-white shadow-card">
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-4 p-4">
-              <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-ink-900">
+            <div key={item.id} className="flex items-center gap-3 p-3.5 sm:gap-4 sm:p-4">
+              <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-ink-900 sm:h-20 sm:w-28">
                 <Image src={resolveFileUrl(item.thumbUrl)} alt={item.title} fill className="object-cover" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-ink-950">{item.title}</p>
                 {item.photographerName && <p className="text-sm text-ink-900/50">{item.photographerName}</p>}
               </div>
-              <span className="font-semibold text-ink-950">{formatPrice(item.price)}</span>
+              <span className="shrink-0 font-semibold text-ink-950">{formatPrice(item.price)}</span>
               <button
                 onClick={() => remove(item.id)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-ink-900/40 hover:bg-red-50 hover:text-red-600"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-900/40 hover:bg-red-50 hover:text-red-600"
                 aria-label="Remover"
               >
                 <Trash2 className="h-4 w-4" />
@@ -87,8 +87,8 @@ export default function CartPage() {
           ))}
         </div>
 
-        <div className="h-fit rounded-2xl border border-black/5 bg-white p-6 shadow-card">
-          <h2 className="font-display text-lg font-medium text-ink-950">Resumo</h2>
+        <div className="hidden h-fit rounded-2xl border border-black/5 bg-white p-6 shadow-card sm:block">
+          <h2 className="font-display text-lg uppercase tracking-wide text-ink-950">Resumo</h2>
           <div className="mt-4 flex justify-between text-sm text-ink-900/60">
             <span>Subtotal</span>
             <span>{formatPrice(total)}</span>
@@ -97,7 +97,7 @@ export default function CartPage() {
             <span>Taxa</span>
             <span>Grátis</span>
           </div>
-          <div className="mt-4 flex justify-between border-t border-black/5 pt-4 font-display text-xl font-semibold text-ink-950">
+          <div className="mt-4 flex justify-between border-t border-black/5 pt-4 font-display text-xl text-ink-950">
             <span>Total</span>
             <span>{formatPrice(total)}</span>
           </div>
@@ -106,6 +106,17 @@ export default function CartPage() {
           </Button>
           {!user && <p className="mt-3 text-center text-xs text-ink-900/40">Você precisa entrar para concluir a compra.</p>}
         </div>
+      </div>
+
+      {/* Barra fixa de checkout no mobile, acima da navegação inferior */}
+      <div className="fixed inset-x-0 bottom-16 z-40 flex items-center gap-3 border-t border-black/10 bg-white/95 p-3 backdrop-blur sm:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] text-ink-900/50">Total ({items.length})</p>
+          <p className="font-display text-lg text-ink-950">{formatPrice(total)}</p>
+        </div>
+        <Button variant="secondary" className="shrink-0" onClick={handleCheckout} loading={loading}>
+          Finalizar <ArrowRight className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

@@ -81,7 +81,7 @@ function SuccessContent() {
       <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
         <CheckCircle2 className="h-8 w-8" />
       </span>
-      <h1 className="mt-5 font-display text-3xl font-medium text-ink-950">Pagamento confirmado!</h1>
+      <h1 className="mt-5 font-display text-3xl uppercase tracking-wide text-ink-950">Pagamento confirmado!</h1>
       <p className="mt-1 text-ink-900/50">Suas fotos em HD já estão liberadas para download.</p>
 
       <div className="mt-8 w-full max-w-xl divide-y divide-black/5 rounded-2xl border border-black/5 bg-white text-left shadow-card">

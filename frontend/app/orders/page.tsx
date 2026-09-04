@@ -45,7 +45,7 @@ export default function OrdersPage() {
 
   return (
     <div className="container-page py-10">
-      <h1 className="font-display text-3xl font-medium text-ink-950">Minhas compras</h1>
+      <h1 className="font-display text-3xl uppercase tracking-wide text-ink-950">Minhas compras</h1>
       <p className="mt-1 text-ink-900/50">Baixe suas fotos em HD sempre que precisar.</p>
 
       {loading ? (

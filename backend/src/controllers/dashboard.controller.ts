@@ -4,7 +4,10 @@ import { prisma } from '../config/db';
 export async function getDashboardStats(req: Request, res: Response) {
   const photographerId = req.user!.userId;
 
-  const photos = await prisma.photo.findMany({ where: { photographerId } });
+  const [photos, totalEvents] = await Promise.all([
+    prisma.photo.findMany({ where: { photographerId } }),
+    prisma.event.count({ where: { photographerId } }),
+  ]);
   const photoIds = photos.map((p) => p.id);
 
   const paidItems = photoIds.length
@@ -28,6 +31,7 @@ export async function getDashboardStats(req: Request, res: Response) {
   }
 
   res.json({
+    totalEvents,
     totalPhotos: photos.length,
     totalRevenue,
     totalSales,

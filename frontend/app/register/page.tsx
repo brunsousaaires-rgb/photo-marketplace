@@ -43,7 +43,7 @@ export default function RegisterPage() {
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-950 text-accent-400">
             <Camera className="h-6 w-6" />
           </span>
-          <h1 className="mt-4 font-display text-2xl font-medium text-ink-950">Criar conta</h1>
+          <h1 className="mt-4 font-display text-2xl uppercase tracking-wide text-ink-950">Criar conta</h1>
           <p className="mt-1 text-sm text-ink-900/50">Compre fotos em HD ou venda o seu trabalho.</p>
         </div>
 

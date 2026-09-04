@@ -107,7 +107,7 @@ function serializeOrder(order: any) {
     items: order.items.map((it: any) => ({
       id: it.id,
       price: Number(it.price),
-      photo: { id: it.photo.id, title: it.photo.title, category: it.photo.category },
+      photo: { id: it.photo.id, title: it.photo.title },
     })),
   };
 }

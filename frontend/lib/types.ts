@@ -15,11 +15,44 @@ export interface Photographer {
   avatarUrl: string | null;
 }
 
+export interface EventSummary {
+  id: string;
+  title: string;
+  sport: string;
+  location: string;
+  eventDate: string;
+}
+
+export interface SportEvent {
+  id: string;
+  title: string;
+  sport: string;
+  location: string;
+  eventDate: string;
+  coverUrl: string | null;
+  photoCount: number;
+  fromPrice: number | null;
+  photographer?: Photographer;
+  createdAt: string;
+}
+
+export interface EventListResponse {
+  items: SportEvent[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface SportCount {
+  slug: string;
+  count: number;
+}
+
 export interface Photo {
   id: string;
   title: string;
   description: string | null;
-  category: string;
   price: number;
   width: number;
   height: number;
@@ -28,6 +61,7 @@ export interface Photo {
   previewUrl: string;
   thumbUrl: string;
   photographer?: Photographer;
+  event?: EventSummary;
   purchased?: boolean;
 }
 
@@ -42,7 +76,7 @@ export interface PhotoListResponse {
 export interface OrderItem {
   id: string;
   price: number;
-  photo: { id: string; title: string; category: string };
+  photo: { id: string; title: string };
 }
 
 export interface Order {
@@ -54,6 +88,7 @@ export interface Order {
 }
 
 export interface DashboardStats {
+  totalEvents: number;
   totalPhotos: number;
   totalRevenue: number;
   totalSales: number;

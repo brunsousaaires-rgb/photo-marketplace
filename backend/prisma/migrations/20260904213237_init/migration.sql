@@ -20,12 +20,27 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
-CREATE TABLE "photos" (
+CREATE TABLE "events" (
     "id" TEXT NOT NULL,
     "photographerId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
+    "sport" TEXT NOT NULL,
+    "location" TEXT NOT NULL,
+    "eventDate" TIMESTAMP(3) NOT NULL,
+    "coverKey" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "photos" (
+    "id" TEXT NOT NULL,
+    "photographerId" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
     "description" TEXT,
-    "category" TEXT NOT NULL DEFAULT 'outros',
     "price" DECIMAL(10,2) NOT NULL,
     "originalKey" TEXT NOT NULL,
     "previewKey" TEXT NOT NULL,
@@ -66,7 +81,16 @@ CREATE TABLE "order_items" (
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "photos_category_idx" ON "photos"("category");
+CREATE INDEX "events_sport_idx" ON "events"("sport");
+
+-- CreateIndex
+CREATE INDEX "events_photographerId_idx" ON "events"("photographerId");
+
+-- CreateIndex
+CREATE INDEX "events_eventDate_idx" ON "events"("eventDate");
+
+-- CreateIndex
+CREATE INDEX "photos_eventId_idx" ON "photos"("eventId");
 
 -- CreateIndex
 CREATE INDEX "photos_photographerId_idx" ON "photos"("photographerId");
@@ -81,7 +105,13 @@ CREATE INDEX "orders_buyerId_idx" ON "orders"("buyerId");
 CREATE UNIQUE INDEX "order_items_orderId_photoId_key" ON "order_items"("orderId", "photoId");
 
 -- AddForeignKey
+ALTER TABLE "events" ADD CONSTRAINT "events_photographerId_fkey" FOREIGN KEY ("photographerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "photos" ADD CONSTRAINT "photos_photographerId_fkey" FOREIGN KEY ("photographerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "photos" ADD CONSTRAINT "photos_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "events"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_buyerId_fkey" FOREIGN KEY ("buyerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

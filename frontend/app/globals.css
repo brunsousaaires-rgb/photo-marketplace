@@ -4,7 +4,7 @@
 
 :root {
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', 'Iowan Old Style', 'Georgia', ui-serif, serif;
+  --font-display: 'Anton', 'Impact', ui-sans-serif, sans-serif;
 }
 
 html {
@@ -12,13 +12,13 @@ html {
 }
 
 body {
-  background-color: #faf9f7;
-  color: #131316;
+  background-color: #f5f6f2;
+  color: #08090a;
 }
 
 ::selection {
-  background-color: #eda428;
-  color: #0b0b0d;
+  background-color: #c8ff00;
+  color: #08090a;
 }
 
 ::-webkit-scrollbar {
@@ -29,9 +29,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #d8d5cf;
+  background-color: #d8dad2;
   border-radius: 999px;
-  border: 2px solid #faf9f7;
+  border: 2px solid #f5f6f2;
 }
 
 @layer utilities {
@@ -41,6 +41,9 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  .font-display {
+    letter-spacing: 0.01em;
+  }
   .watermark-badge {
     background-image: repeating-linear-gradient(
       -32deg,
@@ -49,6 +52,19 @@ body {
       transparent 1px,
       transparent 46px
     );
+  }
+  .text-gradient-hype {
+    background-image: linear-gradient(90deg, #c8ff00, #00e5ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -64,4 +80,17 @@ body {
 }
 .animate-fade-up {
   animation: fade-up 0.5s ease both;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
 }

@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import path from 'path';
 import { env } from './config/env';
 import authRoutes from './routes/auth.routes';
+import eventsRoutes from './routes/events.routes';
 import photosRoutes from './routes/photos.routes';
 import paymentsRoutes from './routes/payments.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -28,11 +29,13 @@ app.use(express.json({ limit: '2mb' }));
 if (env.storageDriver === 'local') {
   app.use('/files/previews', express.static(path.join(localRootDir(), 'previews'), { maxAge: '1d' }));
   app.use('/files/thumbs', express.static(path.join(localRootDir(), 'thumbs'), { maxAge: '1d' }));
+  app.use('/files/covers', express.static(path.join(localRootDir(), 'covers'), { maxAge: '1d' }));
 }
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/events', eventsRoutes);
 app.use('/api/photos', photosRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/dashboard', dashboardRoutes);

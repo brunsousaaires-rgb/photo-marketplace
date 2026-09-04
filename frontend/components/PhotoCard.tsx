@@ -21,7 +21,7 @@ export function PhotoCard({ photo }: { photo: Photo }) {
             src={resolveFileUrl(photo.thumbUrl)}
             alt={photo.title}
             fill
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 100vw"
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
             className="object-cover transition duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 transition group-hover:opacity-100" />
