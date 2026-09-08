@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { site } from "@/lib/site.config";
 
@@ -33,6 +34,7 @@ export default function RootLayout({
     <html lang="pt-BR" className="scroll-smooth">
       <body className={`${display.variable} ${sans.variable} font-sans bg-ink text-white antialiased`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
