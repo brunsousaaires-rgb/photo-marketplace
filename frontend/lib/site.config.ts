@@ -8,8 +8,8 @@ export const site = {
   role: "Criação de Sites & Soluções com IA",
   tagline:
     "Transformo ideias em produtos digitais rápidos, bonitos e inteligentes — sites modernos e automações com IA que resolvem problemas reais.",
-  email: "seuemail@exemplo.com", // TODO: troque pelo seu e-mail de contato
-  whatsapp: "5511999999999", // TODO: troque pelo seu número (DDI+DDD+número, só dígitos)
+  email: "brunsousaaires@gmail.com",
+  whatsapp: "5562992535825",
   location: "Brasil · Atendimento remoto",
   socials: [
     { label: "GitHub", href: "https://github.com/brunsousaaires-rgb" },
