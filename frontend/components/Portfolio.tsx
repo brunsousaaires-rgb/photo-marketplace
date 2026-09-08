@@ -19,11 +19,7 @@ export default function Portfolio() {
             Projetos recentes de sites e produtos com IA
           </h2>
           <p className="mt-4 max-w-xl text-sm text-white/50">
-            Substitua estes cards pelos seus próprios projetos em{" "}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">
-              lib/site.config.ts
-            </code>
-            .
+            Alguns dos sites que já desenvolvi.
           </p>
         </Reveal>
 
@@ -31,7 +27,7 @@ export default function Portfolio() {
           {projects.map((project, i) => (
             <Reveal key={project.title} delay={(i % 2) * 0.1}>
               <TiltCard className="group relative overflow-hidden rounded-3xl border border-white/10 bg-surface">
-                <a href={project.href} className="block">
+                <a href={project.href} target="_blank" rel="noreferrer" className="block">
                   <div className="relative h-64 w-full overflow-hidden">
                     <Image
                       src={project.image}

@@ -48,40 +48,22 @@ export const services = [
 
 export const projects = [
   {
-    title: "Painel de Analytics com IA",
+    title: "FotoPro — Venda de Fotos e Galeria",
     description:
-      "Dashboard que usa IA para prever tendências de vendas e sugerir ações automaticamente.",
-    tags: ["Next.js", "IA", "Dashboard"],
+      "Plataforma para fotógrafos venderem suas fotos em alta resolução, com galeria organizada e download seguro para os clientes.",
+    tags: ["Marketplace", "Fotografia", "E-commerce"],
     image:
-      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1200&auto=format&fit=crop",
-    href: "#",
+      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1200&auto=format&fit=crop",
+    href: "https://fotopro-venda-de-fotos-e-galeria.ai.studio/",
   },
   {
-    title: "E-commerce de Alta Performance",
+    title: "Ateliê Doce — Alta Confeitaria Artesanal",
     description:
-      "Loja online com checkout otimizado e recomendação de produtos por IA, aumentando a conversão.",
-    tags: ["E-commerce", "Performance"],
+      "Site institucional para confeitaria artesanal premium, apresentando os produtos e um canal direto para encomendas.",
+    tags: ["Site Institucional", "Branding"],
     image:
-      "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop",
-    href: "#",
-  },
-  {
-    title: "Assistente de Atendimento",
-    description:
-      "Chatbot com IA integrado ao WhatsApp que responde clientes 24h e organiza leads automaticamente.",
-    tags: ["Chatbot", "Automação"],
-    image:
-      "https://images.unsplash.com/photo-1531746790731-6c087fecd65a?q=80&w=1200&auto=format&fit=crop",
-    href: "#",
-  },
-  {
-    title: "Landing Page de Lançamento",
-    description:
-      "Página de alta conversão para lançamento de produto digital, com animações e copy focada em resultado.",
-    tags: ["Landing Page", "Conversão"],
-    image:
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop",
-    href: "#",
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=1200&auto=format&fit=crop",
+    href: "https://ateli-doce-alta-confeitaria.ai.studio/",
   },
 ];
 
