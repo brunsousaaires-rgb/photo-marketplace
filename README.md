@@ -2,6 +2,10 @@
 
 Uma plataforma web moderna e profissional para venda de fotos em alta resolução com marca d'água automática, autenticação segura, processamento de pagamentos e sistema de download HD.
 
+## 🚀 Landing Page de Portfólio
+
+Este repositório também inclui, em [`frontend/`](./frontend), uma landing page standalone (Next.js + Tailwind + Framer Motion) para divulgar um portfólio de criação de sites e soluções com IA. Veja [`frontend/README.md`](./frontend/README.md) para detalhes de como rodar, personalizar e configurar o Supabase do formulário de contato.
+
 ## ✨ Features Principais
 
 - 🔐 **Autenticação**: Sistema de login/registro seguro com JWT
