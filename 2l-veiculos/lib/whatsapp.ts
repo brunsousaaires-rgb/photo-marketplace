@@ -11,6 +11,10 @@ export function generalContactLink() {
   return whatsappLink('Olá! Vim pelo site da 2L Veículos e gostaria de falar com vocês.');
 }
 
+export function contactPersonLink() {
+  return whatsappLink(`Olá, ${site.contactName}! Vim pelo site da 2L Veículos e gostaria de falar com você.`);
+}
+
 export function sellerContactLink(sellerName: string, whatsapp: string) {
   return whatsappLink(
     `Olá, ${sellerName}! Vim pelo site da 2L Veículos e gostaria de falar com você.`,

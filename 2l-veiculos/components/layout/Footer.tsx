@@ -9,6 +9,8 @@ const columns = [
     links: [
       { label: 'Estoque', href: '/veiculos' },
       { label: 'Modelos', href: '/#modelos' },
+      { label: 'Financiamento', href: '/#financiamento' },
+      { label: 'Clientes', href: '/#clientes' },
       { label: 'Vendedores', href: '/vendedores' },
       { label: 'Sobre', href: '/sobre' },
       { label: 'Contato', href: '/contato' },

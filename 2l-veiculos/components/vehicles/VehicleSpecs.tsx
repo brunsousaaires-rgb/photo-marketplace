@@ -6,11 +6,11 @@ export default function VehicleSpecs({ vehicle }: { vehicle: Vehicle }) {
   const specs = [
     { icon: Calendar, label: 'Ano', value: `${vehicle.year}${vehicle.modelYear ? `/${vehicle.modelYear}` : ''}` },
     { icon: Gauge, label: 'Quilometragem', value: formatMileage(vehicle.mileage) },
-    { icon: Cog, label: 'Câmbio', value: vehicle.transmission },
-    { icon: Fuel, label: 'Combustível', value: vehicle.fuel },
-    { icon: Palette, label: 'Cor', value: vehicle.color },
+    vehicle.transmission ? { icon: Cog, label: 'Câmbio', value: vehicle.transmission } : null,
+    vehicle.fuel ? { icon: Fuel, label: 'Combustível', value: vehicle.fuel } : null,
+    vehicle.color ? { icon: Palette, label: 'Cor', value: vehicle.color } : null,
     { icon: Tag, label: 'Categoria', value: vehicle.category },
-  ];
+  ].filter((spec): spec is NonNullable<typeof spec> => spec !== null);
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

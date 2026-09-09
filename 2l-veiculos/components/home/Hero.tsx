@@ -6,14 +6,8 @@ import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowDown, ArrowRight } from 'lucide-react';
 
-/**
- * Imagem "hero" cinematográfica.
- * PENDENTE: substituir por uma foto real de alta resolução de um veículo
- * da 2L (idealmente em estúdio/fundo escuro) assim que estiver disponível.
- * Ex.: /public/hero/carro-destaque.jpg
- */
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=2000&q=85';
+// Foto real de um veículo do estoque da 2L Veículos, na fachada da loja em Trindade-GO.
+const HERO_IMAGE = 'https://2lveiculos.netlify.app/assets/estoque-2l/corolla.jpg';
 
 export default function Hero() {
   const sectionRef = useRef<HTMLDivElement>(null);

@@ -12,6 +12,7 @@ export function formatPrice(value: number) {
   });
 }
 
-export function formatMileage(value: number) {
+export function formatMileage(value?: number) {
+  if (value === undefined) return 'Km a consultar';
   return `${value.toLocaleString('pt-BR')} km`;
 }

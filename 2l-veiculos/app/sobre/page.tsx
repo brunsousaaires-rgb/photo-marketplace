@@ -37,8 +37,8 @@ export default function SobrePage() {
 
       <section className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9]">
         <Image
-          src="https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=2000&q=80"
-          alt="Fachada e pátio da 2L Veículos"
+          src="https://2lveiculos.netlify.app/assets/estoque-2l/hb20.jpg"
+          alt="Fachada da loja da 2L Veículos, em Trindade-GO"
           fill
           sizes="100vw"
           className="object-cover"
@@ -51,12 +51,12 @@ export default function SobrePage() {
           <Reveal>
             <SectionLabel index="01">Nossa história</SectionLabel>
             <p className="mt-5 text-sm leading-relaxed text-ink-soft sm:text-base">
-              Há {site.yearsInMarket} anos no mercado automotivo, a 2L Veículos nasceu em {site.city}-{site.state}
-              {' '}com um propósito claro: {site.missionStatement.charAt(0).toLowerCase() + site.missionStatement.slice(1)}
+              Há {site.yearsInMarket} anos no mercado automotivo, a 2L Veículos atua em {site.city}-{site.state}
+              {' '}com um propósito claro: {site.missionStatement.toLowerCase()}
             </p>
             <p className="mt-4 text-sm leading-relaxed text-ink-soft sm:text-base">
-              Trabalhamos com compra, venda, troca e financiamento de veículos, sempre com foco em um
-              atendimento próximo — do primeiro contato até a entrega das chaves.
+              Trabalhamos com compra, venda, troca, financiamento e consignação de veículos, sempre com foco
+              em um atendimento próximo — do primeiro contato até a entrega das chaves.
             </p>
           </Reveal>
 

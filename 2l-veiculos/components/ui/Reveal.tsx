@@ -7,14 +7,17 @@ export default function Reveal({
   className,
   delay = 0,
   y = 28,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   delay?: number;
   y?: number;
+  id?: string;
 }) {
   return (
     <motion.div
+      id={id}
       initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-80px' }}

@@ -4,7 +4,8 @@ import { sellers } from '@/data/sellers';
 import SellerCard from '@/components/sellers/SellerCard';
 import Reveal from '@/components/ui/Reveal';
 import SectionLabel from '@/components/ui/SectionLabel';
-import { generalContactLink } from '@/lib/whatsapp';
+import { contactPersonLink } from '@/lib/whatsapp';
+import { site } from '@/data/site';
 
 export const metadata: Metadata = {
   title: 'Vendedores',
@@ -34,18 +35,18 @@ export default function VendedoresPage() {
           <Reveal delay={0.15} className="mt-14">
             <div className="flex flex-col items-start gap-5 rounded-2xl border border-white/10 bg-surface p-10 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-lg text-sm leading-relaxed text-ink-soft">
-                A equipe de consultores da 2L ainda será cadastrada aqui. Enquanto isso, fale direto com a
-                loja pelo WhatsApp e você será atendido rapidamente.
+                Hoje o atendimento da 2L é feito diretamente por {site.contactName}. Fale agora pelo
+                WhatsApp e você será atendido rapidamente.
               </p>
               <a
-                href={generalContactLink()}
+                href={contactPersonLink()}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-cursor="explore"
                 className="inline-flex shrink-0 items-center gap-2 rounded-full border border-gold/50 px-6 py-3 text-xs font-semibold uppercase tracking-widest text-gold transition-colors hover:bg-gold hover:text-bg"
               >
                 <MessageCircle size={14} />
-                Falar com a 2L
+                Falar com {site.contactName}
               </a>
             </div>
           </Reveal>

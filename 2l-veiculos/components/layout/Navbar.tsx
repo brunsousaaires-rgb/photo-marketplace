@@ -10,6 +10,7 @@ import { generalContactLink } from '@/lib/whatsapp';
 const links = [
   { label: 'Estoque', href: '/veiculos' },
   { label: 'Modelos', href: '/#modelos' },
+  { label: 'Financiamento', href: '/#financiamento' },
   { label: 'Vendedores', href: '/vendedores' },
   { label: 'Sobre', href: '/sobre' },
   { label: 'Contato', href: '/contato' },
@@ -34,7 +35,7 @@ export default function Navbar() {
         <motion.div
           animate={{
             width: scrolled ? '100%' : '100%',
-            maxWidth: scrolled ? 880 : 1280,
+            maxWidth: scrolled ? 980 : 1280,
             paddingTop: scrolled ? 10 : 18,
             paddingBottom: scrolled ? 10 : 18,
             backgroundColor: scrolled ? 'rgba(19,19,22,0.7)' : 'rgba(19,19,22,0)',
@@ -47,7 +48,7 @@ export default function Navbar() {
             2L <span className="text-gradient-gold">VEÍCULOS</span>
           </Link>
 
-          <nav className="hidden items-center gap-8 md:flex">
+          <nav className="hidden items-center gap-6 lg:flex">
             {links.map((link) => (
               <Link
                 key={link.href}
@@ -66,14 +67,14 @@ export default function Navbar() {
               target="_blank"
               rel="noopener noreferrer"
               data-cursor="explore"
-              className="hidden rounded-full border border-gold/40 px-5 py-2 text-xs font-semibold uppercase tracking-widest text-gold transition-colors hover:bg-gold hover:text-bg md:inline-block"
+              className="hidden rounded-full border border-gold/40 px-5 py-2 text-xs font-semibold uppercase tracking-widest text-gold transition-colors hover:bg-gold hover:text-bg lg:inline-block"
             >
               WhatsApp
             </a>
             <button
               onClick={() => setMenuOpen(true)}
               aria-label="Abrir menu"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-ink md:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-ink lg:hidden"
             >
               <Menu size={18} />
             </button>

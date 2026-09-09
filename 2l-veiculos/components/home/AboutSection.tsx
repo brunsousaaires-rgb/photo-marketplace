@@ -23,8 +23,8 @@ export default function AboutSection() {
           </h2>
           <p className="mt-6 max-w-lg text-sm leading-relaxed text-ink-soft sm:text-base">
             {site.missionStatement} Há {site.yearsInMarket} anos no mercado de veículos em {site.city}-{site.state},
-            a 2L Veículos trabalha com compra, venda, troca e financiamento — do primeiro contato à entrega
-            das chaves.
+            a 2L trabalha com compra, venda, troca, financiamento e consignação — do primeiro contato à
+            entrega das chaves.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-10">
@@ -41,8 +41,8 @@ export default function AboutSection() {
 
         <Reveal delay={0.15} className="relative aspect-[4/5] overflow-hidden rounded-2xl">
           <Image
-            src="https://images.unsplash.com/photo-1616422285623-13ff0162193c?auto=format&fit=crop&w=1400&q=80"
-            alt="Loja 2L Veículos"
+            src="https://2lveiculos.netlify.app/assets/provas-sociais-2l/entrega-1.jpg"
+            alt="Entrega de veículo na loja da 2L Veículos, em Trindade-GO"
             fill
             sizes="(max-width: 1024px) 100vw, 50vw"
             className="object-cover"

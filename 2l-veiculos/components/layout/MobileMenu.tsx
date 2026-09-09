@@ -9,9 +9,11 @@ import { generalContactLink } from '@/lib/whatsapp';
 const links = [
   { number: '01', label: 'Estoque', href: '/veiculos' },
   { number: '02', label: 'Modelos', href: '/#modelos' },
-  { number: '03', label: 'Vendedores', href: '/vendedores' },
-  { number: '04', label: 'Sobre a 2L', href: '/sobre' },
-  { number: '05', label: 'Contato', href: '/contato' },
+  { number: '03', label: 'Financiamento', href: '/#financiamento' },
+  { number: '04', label: 'Clientes', href: '/#clientes' },
+  { number: '05', label: 'Vendedores', href: '/vendedores' },
+  { number: '06', label: 'Sobre a 2L', href: '/sobre' },
+  { number: '07', label: 'Contato', href: '/contato' },
 ];
 
 export default function MobileMenu({
@@ -42,21 +44,21 @@ export default function MobileMenu({
             </button>
           </div>
 
-          <nav className="mt-10 flex flex-1 flex-col justify-center gap-1 px-6">
+          <nav className="mt-6 flex flex-1 flex-col justify-center gap-0.5 overflow-y-auto px-6">
             {links.map((link, i) => (
               <motion.div
                 key={link.href}
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 + i * 0.06, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ delay: 0.12 + i * 0.05, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
                 <Link
                   href={link.href}
                   onClick={onClose}
-                  className="flex items-baseline gap-4 border-b border-white/5 py-4 text-ink"
+                  className="flex items-baseline gap-4 border-b border-white/5 py-3 text-ink"
                 >
                   <span className="text-xs text-gold">{link.number}</span>
-                  <span className="font-display text-4xl uppercase tracking-wide">{link.label}</span>
+                  <span className="font-display text-3xl uppercase tracking-wide">{link.label}</span>
                 </Link>
               </motion.div>
             ))}

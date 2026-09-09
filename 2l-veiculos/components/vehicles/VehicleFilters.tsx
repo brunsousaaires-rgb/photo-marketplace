@@ -32,8 +32,8 @@ export default function VehicleFilters({
 }) {
   const brands = ['Todas', ...Array.from(new Set(vehicles.map((v) => v.brand))).sort()];
   const categories = ['Todas', ...Array.from(new Set(vehicles.map((v) => v.category))).sort()];
-  const transmissions = ['Todos', ...Array.from(new Set(vehicles.map((v) => v.transmission))).sort()];
-  const fuels = ['Todos', ...Array.from(new Set(vehicles.map((v) => v.fuel))).sort()];
+  const transmissions = ['Todos', ...Array.from(new Set(vehicles.map((v) => v.transmission).filter(Boolean) as string[])).sort()];
+  const fuels = ['Todos', ...Array.from(new Set(vehicles.map((v) => v.fuel).filter(Boolean) as string[])).sort()];
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     onChange({ ...filters, [key]: value });

@@ -21,38 +21,42 @@ npm run lint    # checagem de lint
 ## O que já está pronto
 
 - Hero cinematográfico com abertura em fases (escuridão → carro → texto), parallax de scroll e navbar que se transforma ao rolar.
-- Estoque com cards premium, filtros (marca, categoria, câmbio, combustível, busca, ordenação).
+- Estoque real da 2L (27 veículos) com cards premium, filtros (marca, categoria, câmbio, combustível, busca, ordenação).
 - Página de veículo individual com galeria, especificações, opcionais, veículos semelhantes e CTA de WhatsApp com mensagem pré-preenchida.
-- Seções institucionais: Sobre, Diferenciais, Experiência 2L, Instagram, Vendedores, CTA final.
+- Seções institucionais: Sobre, Diferenciais, Clientes (prova social com entregas reais), Financiamento/Consignação/Avaliação, Instagram, Vendedores, CTA final.
 - Menu mobile fullscreen, cursor customizado (desktop), loading screen, botão flutuante de WhatsApp, barra de progresso de scroll.
 - SEO: metadata dinâmica por veículo, Open Graph, sitemap.xml, robots.txt, JSON-LD (`AutomotiveBusiness`).
 - `prefers-reduced-motion` respeitado (desativa animações pesadas).
 
-## ⚠️ O que precisa ser preenchido com dados reais
+## Dados reais utilizados
 
-Todo esse conteúdo está **claramente marcado no código** (procure por `PENDENTE`) e não foi inventado:
+Todo o conteúdo do site vem de fontes públicas reais da 2L Veículos — nada foi inventado:
+
+- **Instagram** [@2lveiculoss](https://www.instagram.com/2lveiculoss/) (bio, WhatsApp)
+- **Site institucional oficial** [2lveiculos.netlify.app](https://2lveiculos.netlify.app/), incluindo o endpoint público `/api/config` que alimenta a vitrine deles (estoque, textos, endereço, contato)
+
+Isso inclui:
+
+- Nome, endereço completo (`Av. Manoel Monteiro, 80 — Jardim Salvador, Trindade/GO, 75388-565`), os dois números de WhatsApp, e o nome do contato atual (**Lucas**)
+- Textos institucionais reais (tagline, "por que comprar na 2L", copy de financiamento/consignação, prova social)
+- **Estoque real** (27 veículos, com marca/modelo/versão/ano/km/câmbio/combustível/cor/preço e fotos reais) em [`data/vehicles.ts`](./data/vehicles.ts) — as fotos ficam hospedadas no domínio oficial da 2L
+- Fotos reais da fachada da loja e de entregas de veículos (Hero, Sobre, seção "Clientes")
+
+Tudo centralizado em [`data/site.ts`](./data/site.ts) e [`data/vehicles.ts`](./data/vehicles.ts), com comentários `CONFIRMADO`/`PENDENTE` indicando a origem de cada dado.
+
+### ⚠️ O que ainda falta
 
 | Item | Onde | Status |
 |---|---|---|
-| Estoque real de veículos (fotos, preço, km, etc.) | `data/vehicles.ts` | 6 veículos de **exemplo** (`isPlaceholder: true`), com fotos de banco de imagens (Unsplash) |
-| Equipe de vendedores | `data/sellers.ts` | Array vazio, pronto para receber `{ id, name, role, image, whatsapp, bio }` |
-| Fotos reais da loja/equipe/bastidores | `components/home/AboutSection.tsx`, `ExperienceSection.tsx`, `Hero.tsx` | Usando fotos de banco de imagens como placeholder |
+| Equipe de vendedores (fotos + nomes além do Lucas) | `data/sellers.ts` | Array vazio, pronto para receber `{ id, name, role, image, whatsapp, bio }` |
 | Número de veículos vendidos / clientes atendidos | `data/site.ts` (`vehiclesSold`, `happyCustomers`) | Não publicado publicamente — `undefined`, a seção só mostra o que existe |
-| Horário de atendimento | `app/contato/page.tsx` | Não confirmado — mensagem indica consultar via WhatsApp |
-| Posts reais do Instagram | `components/home/InstagramFeed.tsx` | Estrutura pronta para receber posts manualmente ou via integração com a API do Instagram |
+| Horário de atendimento exato | `app/contato/page.tsx` | O próprio site institucional pede para consultar via WhatsApp |
+| Posts reais do Instagram no feed do site | `components/home/InstagramFeed.tsx` | Estrutura pronta para receber posts manualmente ou via integração com a API do Instagram |
 | Outras redes sociais (Facebook etc.) | `data/site.ts` (`social.facebook`) | Não confirmado |
 
-### Dados confirmados publicamente (usados no site)
+### Importante sobre o estoque
 
-Extraídos do Instagram [@2lveiculoss](https://www.instagram.com/2lveiculoss/) e do site institucional [2lveiculos.com.br](https://2lveiculos.com.br/):
-
-- Nome: **2L Veículos**
-- Localização: Trindade-GO — Av. Manoel Monteiro, Jardim Salvador, nº 80
-- WhatsApp principal: (62) 98516-9550 · WhatsApp alternativo: (62) 98456-1510
-- "12 anos de experiência em veículos" · Compra, Venda, Troca, Financiamento
-- Missão: oferecer as melhores ofertas com responsabilidade e dedicação
-
-Tudo isso está centralizado em [`data/site.ts`](./data/site.ts).
+O estoque em `data/vehicles.ts` é um **retrato do momento em que foi extraído** do site institucional da 2L. Carros vendidos saem do estoque e novos entram com frequência — atualize esta lista periodicamente (o ideal é conectar a uma fonte de dados que a 2L já mantenha atualizada, como o painel que gera o `/api/config` do site institucional deles, ou um backend próprio).
 
 ## Conectando dados reais no futuro
 
@@ -60,4 +64,4 @@ Tudo isso está centralizado em [`data/site.ts`](./data/site.ts).
 
 ## Identidade visual
 
-Paleta preta + dourado/bronze metálico, inspirada no logo da marca (fundo preto, "2L" em gradiente dourado). Tipografia: **Bebas Neue** (display, títulos grandes) + **Inter** (texto). Tokens de cor em `app/globals.css` e `tailwind.config.ts`.
+Paleta preta + dourado/bronze metálico, inspirada no logo real da marca (fundo preto/cinza grafite, "2L" em relevo dourado). Tipografia: **Bebas Neue** (display, títulos grandes) + **Inter** (texto). Tokens de cor em `app/globals.css` e `tailwind.config.ts`.

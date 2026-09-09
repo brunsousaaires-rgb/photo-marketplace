@@ -6,6 +6,7 @@ import SellerSection from '@/components/home/SellerSection';
 import AboutSection from '@/components/home/AboutSection';
 import DifferentialsSection from '@/components/home/DifferentialsSection';
 import ExperienceSection from '@/components/home/ExperienceSection';
+import FinanceSection from '@/components/home/FinanceSection';
 import InstagramFeed from '@/components/home/InstagramFeed';
 import CTASection from '@/components/home/CTASection';
 
@@ -20,6 +21,7 @@ export default function HomePage() {
       <AboutSection />
       <DifferentialsSection />
       <ExperienceSection />
+      <FinanceSection />
       <InstagramFeed />
       <CTASection />
     </>

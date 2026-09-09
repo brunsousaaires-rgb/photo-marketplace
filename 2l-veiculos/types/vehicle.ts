@@ -1,7 +1,3 @@
-export type Transmission = 'Automático' | 'Manual' | 'CVT' | 'Automatizado';
-
-export type FuelType = 'Flex' | 'Gasolina' | 'Diesel' | 'Híbrido' | 'Elétrico';
-
 export type VehicleCategory =
   | 'SUV'
   | 'Sedã'
@@ -18,10 +14,13 @@ export interface Vehicle {
   version?: string;
   year: number;
   modelYear?: number;
-  mileage: number;
-  transmission: Transmission;
-  fuel: FuelType;
-  color: string;
+  /** Alguns anúncios reais da 2L não informam km — nesse caso fica undefined. */
+  mileage?: number;
+  /** Texto livre como cadastrado pela 2L (ex.: "Automático", "Manual"). Pode vir vazio. */
+  transmission?: string;
+  /** Texto livre como cadastrado pela 2L (ex.: "Flex", "Diesel"). Pode vir vazio. */
+  fuel?: string;
+  color?: string;
   price: number;
   category: VehicleCategory;
   images: string[];

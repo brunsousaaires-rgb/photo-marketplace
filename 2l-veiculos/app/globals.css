@@ -126,3 +126,11 @@ button {
     cursor: auto;
   }
 }
+
+#modelos,
+#sobre,
+#clientes,
+#financiamento,
+#consignacao {
+  scroll-margin-top: 110px;
+}

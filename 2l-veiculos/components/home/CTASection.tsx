@@ -8,8 +8,8 @@ export default function CTASection() {
   return (
     <section className="relative flex min-h-[80vh] items-center overflow-hidden bg-bg px-6 py-24 sm:px-10 lg:px-16">
       <Image
-        src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=2000&q=80"
-        alt="Farol de veículo em destaque"
+        src="https://2lveiculos.netlify.app/assets/estoque-2l/saveiro.jpg"
+        alt="Veículo do estoque da 2L Veículos"
         fill
         sizes="100vw"
         className="object-cover opacity-30"
