@@ -13,7 +13,6 @@ export const site = {
   location: "Brasil · Atendimento remoto",
   socials: [
     { label: "GitHub", href: "https://github.com/brunsousaaires-rgb" },
-    { label: "LinkedIn", href: "https://linkedin.com" },
     { label: "Instagram", href: "https://instagram.com" },
   ],
 };
