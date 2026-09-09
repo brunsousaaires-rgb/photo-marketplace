@@ -6,6 +6,10 @@ Uma plataforma web moderna e profissional para venda de fotos em alta resoluçã
 
 Este repositório também inclui, em [`frontend/`](./frontend), uma landing page standalone (Next.js + Tailwind + Framer Motion) para divulgar um portfólio de criação de sites e soluções com IA. Veja [`frontend/README.md`](./frontend/README.md) para detalhes de como rodar, personalizar e configurar o Supabase do formulário de contato.
 
+## 🚗 Zequinha Veículos
+
+Em [`zequinha-veiculos/`](./zequinha-veiculos) está o site institucional da **Zequinha Veículos** (Trindade – GO): uma experiência automotiva cinematográfica em Next.js + TypeScript + Tailwind + GSAP + Framer Motion, com abertura animada da Fiat Toro, estoque filtrável, páginas de veículo, avaliação para venda/troca e integração com WhatsApp. Veja [`zequinha-veiculos/README.md`](./zequinha-veiculos/README.md) para rodar e adicionar dados reais da loja.
+
 ## ✨ Features Principais
 
 - 🔐 **Autenticação**: Sistema de login/registro seguro com JWT
