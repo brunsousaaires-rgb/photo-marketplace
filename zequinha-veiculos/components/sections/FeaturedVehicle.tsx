@@ -7,7 +7,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowUpRight, Car } from "lucide-react";
 import { getFeaturedVehicles } from "@/data/vehicles";
 import { formatKm, formatPrice } from "@/lib/utils";
-import { ToroSilhouette } from "../vehicles/ToroSilhouette";
 import { Reveal } from "../ui/Reveal";
 
 function FeaturedRow({ vehicle, reverse }: { vehicle: ReturnType<typeof getFeaturedVehicles>[number]; reverse?: boolean }) {
@@ -17,7 +16,6 @@ function FeaturedRow({ vehicle, reverse }: { vehicle: ReturnType<typeof getFeatu
     offset: ["start 85%", "end 30%"],
   });
   const scale = useTransform(scrollYProgress, [0, 1], [0.88, 1]);
-  const isToroArt = vehicle.slug === "fiat-toro" && !vehicle.hasRealPhotos;
   const hasImage = vehicle.hasRealPhotos && vehicle.images[0];
 
   return (
@@ -31,11 +29,7 @@ function FeaturedRow({ vehicle, reverse }: { vehicle: ReturnType<typeof getFeatu
         style={{ scale }}
         className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-b from-graphite-800 to-black lg:aspect-[16/11]"
       >
-        {isToroArt ? (
-          <div className="flex h-full items-center justify-center p-10">
-            <ToroSilhouette className="h-auto w-full" />
-          </div>
-        ) : hasImage ? (
+        {hasImage ? (
           <Image
             src={vehicle.images[0]}
             alt={vehicle.fullName}

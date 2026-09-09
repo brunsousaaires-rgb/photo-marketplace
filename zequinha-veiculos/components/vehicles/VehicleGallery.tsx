@@ -5,26 +5,20 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Car } from "lucide-react";
 import { Vehicle } from "@/data/vehicles";
-import { ToroSilhouette } from "./ToroSilhouette";
 
 export function VehicleGallery({ vehicle }: { vehicle: Vehicle }) {
   const [index, setIndex] = useState(0);
-  const isToroArt = vehicle.slug === "fiat-toro" && !vehicle.hasRealPhotos;
   const hasImages = vehicle.hasRealPhotos && vehicle.images.length > 0;
 
   if (!hasImages) {
     return (
       <div className="relative flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-b from-graphite-800 to-black md:aspect-[21/9]">
-        {isToroArt ? (
-          <ToroSilhouette className="h-auto w-full max-w-3xl px-10" />
-        ) : (
-          <div className="flex flex-col items-center gap-3 text-white/25">
-            <Car size={56} strokeWidth={1} />
-            <span className="text-xs uppercase tracking-widest">
-              Galeria de fotos em breve
-            </span>
-          </div>
-        )}
+        <div className="flex flex-col items-center gap-3 text-white/25">
+          <Car size={56} strokeWidth={1} />
+          <span className="text-xs uppercase tracking-widest">
+            Galeria de fotos em breve
+          </span>
+        </div>
       </div>
     );
   }

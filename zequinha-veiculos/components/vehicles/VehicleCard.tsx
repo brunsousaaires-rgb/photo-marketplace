@@ -6,11 +6,8 @@ import { Car, ArrowUpRight } from "lucide-react";
 import { Vehicle } from "@/data/vehicles";
 import { formatKm, formatPrice } from "@/lib/utils";
 import { whatsappUrlForVehicle } from "@/lib/whatsapp";
-import { ToroSilhouette } from "./ToroSilhouette";
 
 export function VehicleCard({ vehicle, index = 0 }: { vehicle: Vehicle; index?: number }) {
-  const isToroArt = vehicle.slug === "fiat-toro" && !vehicle.hasRealPhotos;
-
   return (
     <div
       className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/8 bg-graphite-900"
@@ -21,11 +18,7 @@ export function VehicleCard({ vehicle, index = 0 }: { vehicle: Vehicle; index?: 
         data-cursor="view"
         className="relative block aspect-[4/3] overflow-hidden bg-gradient-to-b from-graphite-800 to-black"
       >
-        {isToroArt ? (
-          <div className="flex h-full w-full items-center justify-center p-8 transition-transform duration-700 ease-cinematic group-hover:scale-105">
-            <ToroSilhouette className="h-auto w-full max-w-md" />
-          </div>
-        ) : vehicle.hasRealPhotos && vehicle.images[0] ? (
+        {vehicle.hasRealPhotos && vehicle.images[0] ? (
           <Image
             src={vehicle.images[0]}
             alt={vehicle.fullName}
