@@ -6,6 +6,10 @@ Uma plataforma web moderna e profissional para venda de fotos em alta resoluçã
 
 Este repositório também inclui, em [`frontend/`](./frontend), uma landing page standalone (Next.js + Tailwind + Framer Motion) para divulgar um portfólio de criação de sites e soluções com IA. Veja [`frontend/README.md`](./frontend/README.md) para detalhes de como rodar, personalizar e configurar o Supabase do formulário de contato.
 
+## 🚗 Site 2L Veículos
+
+Em [`2l-veiculos/`](./2l-veiculos), um site institucional premium e cinematográfico para a concessionária 2L Veículos (Next.js + TypeScript + Tailwind + Framer Motion + Lenis). Veja [`2l-veiculos/README.md`](./2l-veiculos/README.md) para instruções de execução e a lista do que ainda precisa de dados reais da 2L (estoque, equipe, fotos).
+
 ## ✨ Features Principais
 
 - 🔐 **Autenticação**: Sistema de login/registro seguro com JWT
