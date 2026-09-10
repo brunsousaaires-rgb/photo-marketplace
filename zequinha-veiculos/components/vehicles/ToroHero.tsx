@@ -11,6 +11,7 @@ const Toro3DScene = dynamic(
 );
 
 const PARTICLE_COUNT_DESKTOP = 22;
+const PARTICLE_COUNT_MOBILE = 10;
 const STREAK_COUNT = 6;
 
 /**
@@ -30,12 +31,17 @@ export function ToroHero({ onSettled }: { onSettled?: () => void }) {
   const streaksRef = useRef<HTMLDivElement>(null);
   const truckGroupRef = useRef<THREE.Group | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [particleCount, setParticleCount] = useState(PARTICLE_COUNT_DESKTOP);
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
 
   const handleReady = useCallback((group: THREE.Group) => {
     truckGroupRef.current = group;
     setCanvasReady(true);
+  }, []);
+
+  useEffect(() => {
+    setParticleCount(window.innerWidth < 768 ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP);
   }, []);
 
   useEffect(() => {
@@ -162,8 +168,6 @@ export function ToroHero({ onSettled }: { onSettled?: () => void }) {
 
     return () => ctx.revert();
   }, [canvasReady]);
-
-  const particleCount = PARTICLE_COUNT_DESKTOP;
 
   return (
     <div ref={sceneRef} className="absolute inset-0 overflow-hidden bg-black">

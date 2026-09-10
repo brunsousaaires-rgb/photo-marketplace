@@ -6,12 +6,13 @@ import { Car, ArrowUpRight } from "lucide-react";
 import { Vehicle } from "@/data/vehicles";
 import { formatKm, formatPrice } from "@/lib/utils";
 import { whatsappUrlForVehicle } from "@/lib/whatsapp";
+import { TiltCard } from "../ui/TiltCard";
 
 export function VehicleCard({ vehicle, index = 0 }: { vehicle: Vehicle; index?: number }) {
   return (
-    <div
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/8 bg-graphite-900"
-      style={{ transitionDelay: `${index * 40}ms` }}
+    <TiltCard
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/8 bg-graphite-900 transition-colors duration-500 hover:border-turquoise-400/30"
+      style={{ transitionDelay: `${index * 40}ms` } as React.CSSProperties}
     >
       <Link
         href={`/estoque/${vehicle.slug}`}
@@ -97,6 +98,6 @@ export function VehicleCard({ vehicle, index = 0 }: { vehicle: Vehicle; index?: 
           </div>
         </div>
       </div>
-    </div>
+    </TiltCard>
   );
 }

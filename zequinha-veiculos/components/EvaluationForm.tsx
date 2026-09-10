@@ -2,8 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ImagePlus, Send } from "lucide-react";
+import { X, ImagePlus, Send, Check } from "lucide-react";
 import { buildWhatsAppUrl } from "@/lib/whatsapp";
+
+type SubmitStatus = "idle" | "success";
 
 export type EvaluationMode = "vender" | "trocar";
 
@@ -36,13 +38,20 @@ export function EvaluationForm({
 }) {
   const [form, setForm] = useState<FormState>(initialState);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [status, setStatus] = useState<SubmitStatus>("idle");
   const open = mode !== null;
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  function handleClose() {
+    setStatus("idle");
+    onClose();
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (status === "success") return;
 
     // TODO(backend): substituir este envio por uma chamada real à API/CRM
     // da Zequinha (ex.: POST /api/avaliacoes) incluindo o upload de fotos.
@@ -64,9 +73,19 @@ export function EvaluationForm({
       .join("\n");
 
     window.open(buildWhatsAppUrl(message), "_blank", "noopener,noreferrer");
-    setForm(initialState);
-    setPhotos([]);
-    onClose();
+
+    // Estado de sucesso breve antes de fechar: confirma que o pedido saiu
+    // em vez de sumir o modal de corte seco assim que o WhatsApp abre.
+    setStatus("success");
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    window.setTimeout(() => {
+      setForm(initialState);
+      setPhotos([]);
+      setStatus("idle");
+      onClose();
+    }, reduceMotion ? 400 : 900);
   }
 
   return (
@@ -77,7 +96,7 @@ export function EvaluationForm({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          onClick={onClose}
+          onClick={handleClose}
         >
           <motion.div
             initial={{ opacity: 0, y: 32, scale: 0.97 }}
@@ -89,7 +108,7 @@ export function EvaluationForm({
           >
             <button
               aria-label="Fechar"
-              onClick={onClose}
+              onClick={handleClose}
               className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/60 hover:text-white"
             >
               <X size={16} />
@@ -157,14 +176,46 @@ export function EvaluationForm({
                 />
               </label>
 
-              <button
+              <motion.button
                 type="submit"
                 data-cursor="link"
-                className="mt-2 flex items-center justify-center gap-2 rounded-full bg-turquoise-500 px-6 py-4 text-sm font-semibold uppercase tracking-wide text-black transition-colors hover:bg-turquoise-400"
+                disabled={status === "success"}
+                whileTap={status === "idle" ? { scale: 0.97 } : undefined}
+                animate={
+                  status === "success"
+                    ? { backgroundColor: "#7ee8dc" }
+                    : { backgroundColor: "#22c7b5" }
+                }
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="mt-2 flex items-center justify-center gap-2 rounded-full px-6 py-4 text-sm font-semibold uppercase tracking-wide text-black"
               >
-                <Send size={15} />
-                Solicitar Avaliação
-              </button>
+                <AnimatePresence mode="wait" initial={false}>
+                  {status === "success" ? (
+                    <motion.span
+                      key="success"
+                      initial={{ opacity: 0, scale: 0.6 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 320, damping: 18 }}
+                      className="flex items-center gap-2"
+                    >
+                      <Check size={15} strokeWidth={2.5} />
+                      Enviado! Abrindo WhatsApp…
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="idle"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex items-center gap-2"
+                    >
+                      <Send size={15} />
+                      Solicitar Avaliação
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.button>
             </form>
           </motion.div>
         </motion.div>

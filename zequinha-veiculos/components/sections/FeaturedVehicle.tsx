@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
 import { ArrowUpRight, Car } from "lucide-react";
 import { getFeaturedVehicles } from "@/data/vehicles";
 import { formatKm, formatPrice } from "@/lib/utils";
@@ -11,12 +13,43 @@ import { Reveal } from "../ui/Reveal";
 
 function FeaturedRow({ vehicle, reverse }: { vehicle: ReturnType<typeof getFeaturedVehicles>[number]; reverse?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const imageWrapRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start 85%", "end 30%"],
   });
   const scale = useTransform(scrollYProgress, [0, 1], [0.88, 1]);
   const hasImage = vehicle.hasRealPhotos && vehicle.images[0];
+
+  // Parallax da foto (GSAP ScrollTrigger, scrub): a imagem se move mais
+  // devagar que o card enquanto rola, dando profundidade real — o efeito
+  // de scroll que mais impressiona por menos esforço num site de venda.
+  useEffect(() => {
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (reduceMotion || !imageWrapRef.current || !ref.current) return;
+
+    gsap.registerPlugin(ScrollTrigger);
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        imageWrapRef.current,
+        { yPercent: -8 },
+        {
+          yPercent: 8,
+          ease: "none",
+          scrollTrigger: {
+            trigger: ref.current,
+            start: "start end",
+            end: "end start",
+            scrub: 0.6,
+          },
+        }
+      );
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
 
   return (
     <div
@@ -30,13 +63,15 @@ function FeaturedRow({ vehicle, reverse }: { vehicle: ReturnType<typeof getFeatu
         className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-b from-graphite-800 to-black lg:aspect-[16/11]"
       >
         {hasImage ? (
-          <Image
-            src={vehicle.images[0]}
-            alt={vehicle.fullName}
-            fill
-            className="object-cover"
-            sizes="(min-width: 1024px) 60vw, 100vw"
-          />
+          <div ref={imageWrapRef} className="absolute inset-x-0 -inset-y-[10%]">
+            <Image
+              src={vehicle.images[0]}
+              alt={vehicle.fullName}
+              fill
+              className="object-cover"
+              sizes="(min-width: 1024px) 60vw, 100vw"
+            />
+          </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-white/20">
             <Car size={48} strokeWidth={1} />
