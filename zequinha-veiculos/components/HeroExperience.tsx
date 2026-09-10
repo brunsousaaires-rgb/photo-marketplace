@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import { ToroHero } from "./vehicles/ToroHero";
+import { VehicleHero } from "./vehicles/VehicleHero";
 import { MagneticButton } from "./ui/MagneticButton";
 import { whatsappUrlGeneral } from "@/lib/whatsapp";
 
@@ -48,7 +48,7 @@ export function HeroExperience() {
     <section id="inicio" ref={wrapperRef} className="relative h-[175svh] w-full bg-black">
       <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
         <motion.div style={{ scale, opacity, filter }} className="absolute inset-0">
-          <ToroHero onSettled={() => setSettled(true)} />
+          <VehicleHero onSettled={() => setSettled(true)} />
 
           <div
             ref={textRef}

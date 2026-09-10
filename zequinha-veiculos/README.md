@@ -4,11 +4,12 @@ Experiência digital automotiva para a **Zequinha Veículos** (Trindade – GO),
 construída com Next.js 14 (App Router), TypeScript, Tailwind CSS, GSAP e
 Framer Motion.
 
-Abertura cinematográfica com a Fiat Toro (foto real) entrando em alta
-velocidade, freando e parando no centro da tela, seguida por estoque
-filtrável, página de veículo, seções de destaque, compra/venda/troca com
-formulário de avaliação, mural de clientes, Instagram e WhatsApp — tudo com
-o visual preto / branco / turquesa da marca.
+Abertura cinematográfica com um vídeo real de uma RAM Rampage branca sob luz
+de estúdio (cortina abrindo, faróis acendendo, câmera em arco até assentar),
+seguida por estoque filtrável com cards de hover físico (tilt 3D), página de
+veículo, seções de destaque com parallax no scroll, compra/venda/troca com
+formulário de avaliação (com estado de sucesso), mural de clientes,
+Instagram e WhatsApp — tudo com o visual preto / branco / turquesa da marca.
 
 ## Rodando localmente
 
@@ -70,6 +71,24 @@ perfil @zequinha_veiculos capturados no momento da criação do site —
 endereço completo, preencha e conecte um mapa (Google Maps embed ou Mapbox)
 na página — o campo já está preparado.
 
+### Vídeo de abertura — `public/hero/`
+
+O vídeo do herói (`rampage-hero.mp4` / `.webm`, com `rampage-hero-poster.jpg`
+como pôster) foi fornecido pelo usuário — uma RAM Rampage gerada por IA
+(Gemini). Antes de entrar no site, o clipe original passou por três
+tratamentos em `ffmpeg`:
+
+1. Corte do primeiro frame (um flash branco de still de produto, ~1/24s).
+2. Remoção da marca d'água de geração de IA (filtro `delogo`) no canto
+   inferior direito.
+3. Recodificação para web (H.264 + VP9/WebM, sem áudio, `faststart`).
+
+Quando a loja tiver filmagem própria do veículo real (ou de qualquer outro
+destaque), basta substituir os três arquivos em `public/hero/` mantendo os
+mesmos nomes — `components/vehicles/VehicleHero.tsx` não precisa mudar.
+O vídeo toca uma vez (sem loop) e para no último frame; com
+`prefers-reduced-motion`, ele nunca chega a tocar — fica parado no pôster.
+
 ### Formulário de avaliação
 
 `components/EvaluationForm.tsx` hoje monta uma mensagem de WhatsApp
@@ -84,20 +103,24 @@ app/                      rotas (Next.js App Router)
   page.tsx                 home
   estoque/[slug]/page.tsx  página do veículo
 components/
-  ui/                      primitivos (Reveal, Counter, cursor, botão magnético)
-  vehicles/                ToroHero, VehicleCard, VehicleGallery, VehicleFilters
+  ui/                      primitivos (Reveal, Counter, cursor, botão magnético, TiltCard)
+  vehicles/                VehicleHero, VehicleCard, VehicleGallery, VehicleFilters
   sections/                Stock, FeaturedVehicle, CompraVendaTroca, Sobre, ClientGallery, InstagramSection, Footer
 data/                      vehicles.ts, clients.ts, instagram.ts
 lib/                       site.config.ts, whatsapp.ts, utils.ts
+public/hero/               vídeo + pôster da abertura (ver seção acima)
 ```
 
 ## Notas técnicas
 
-- A abertura (`components/vehicles/ToroHero.tsx`) usa uma foto real da Fiat
-  Toro (Wikimedia Commons) com máscara radial + vinheta para destacar o
-  carro sobre o fundo preto, e simula velocidade/frenagem com transforms
-  (translate/scale/rotate/blur, squash & stretch, shake de câmera,
-  partículas e linhas de velocidade) — não há vídeo nem modelo 3D real.
+- A abertura (`components/vehicles/VehicleHero.tsx`) usa um `<video>` real
+  (`public/hero/`) com uma cortina em `clip-path` que abre como em um
+  comercial de carro, uma respiração sutil de zoom depois de assentado, e um
+  acento turquesa da marca sincronizado com o momento em que o texto entra
+  — sem WebGL, sem simulação de movimento.
+- Os cards do estoque (`components/ui/TiltCard.tsx`) inclinam levemente em
+  3D seguindo o cursor no hover, com brilho dinâmico — desliga sozinho em
+  touch e `prefers-reduced-motion`.
 - Todas as fotos de veículos são carregadas diretamente de URLs externas
   (Wikimedia Commons) via `next/image` — `next.config.js` permite qualquer
   host `https` (`remotePatterns`). Para produção, considere hospedar cópias
