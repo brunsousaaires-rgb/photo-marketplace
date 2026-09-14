@@ -10,6 +10,10 @@ Este repositório também inclui, em [`frontend/`](./frontend), uma landing page
 
 Em [`zequinha-veiculos/`](./zequinha-veiculos) está o site institucional da **Zequinha Veículos** (Trindade – GO): uma experiência automotiva cinematográfica em Next.js + TypeScript + Tailwind + GSAP + Framer Motion, com abertura animada da Fiat Toro, estoque filtrável, páginas de veículo, avaliação para venda/troca e integração com WhatsApp. Veja [`zequinha-veiculos/README.md`](./zequinha-veiculos/README.md) para rodar e adicionar dados reais da loja.
 
+## 🧘 ARTIKO — Infoproduto de protocolos de movimento
+
+Em [`artiko/`](./artiko) está o **ARTIKO**, um infoproduto digital feito para venda em plataformas como Cakto, Kiwify ou Shopify: um quiz-app (Vite + React + TypeScript + Tailwind + Framer Motion) que monta um protocolo de exercícios de 6 semanas para dor de ombro, coluna, joelho ou quadril, com paywall animado e uma página de vendas completa. Veja [`artiko/README.md`](./artiko/README.md) para rodar, configurar o link de checkout e publicar.
+
 ## ✨ Features Principais
 
 - 🔐 **Autenticação**: Sistema de login/registro seguro com JWT

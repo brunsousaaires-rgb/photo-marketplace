@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #f1f3f2;
+  --color-surface: #ffffff;
+  --color-primary: #1f5e5b;
+  --color-primary-dark: #16302e;
+  --color-primary-soft: #eaf1f0;
+  --color-accent: #d9a441;
+  --color-accent-soft: #fbf2e4;
+  --color-clay: #e3b7a0;
+  --color-text: #16302e;
+  --color-muted: #5c726f;
+  --color-line: #dce3e1;
+
+  --shadow-soft: 0 1px 2px rgba(22, 48, 46, 0.04), 0 8px 24px -12px rgba(22, 48, 46, 0.12);
+  --shadow-card: 0 2px 6px rgba(22, 48, 46, 0.05), 0 16px 40px -20px rgba(22, 48, 46, 0.18);
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Subtle scrollbar for a crafted feel, non-essential elsewhere */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
