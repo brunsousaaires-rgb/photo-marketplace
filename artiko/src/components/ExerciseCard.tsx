@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import type { Exercise } from "../data/routines";
 import ExerciseDemo from "./ExerciseDemo";
+import { useRipple, RippleLayer } from "./Ripple";
 
 interface ExerciseCardProps {
   exercise: Exercise;
@@ -21,6 +22,9 @@ export default function ExerciseCard({
   onOpen,
   onToggleDone,
 }: ExerciseCardProps) {
+  const openRipple = useRipple();
+  const checkRipple = useRipple();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -31,13 +35,15 @@ export default function ExerciseCard({
       <button
         type="button"
         onClick={onOpen}
-        className="flex flex-1 items-center gap-3 text-left"
+        onPointerDown={openRipple.onPointerDown}
+        className="relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg text-left"
         aria-label={`Ver demonstração de ${displayName}`}
       >
-        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-primary-soft">
+        <RippleLayer ripples={openRipple.ripples} color="rgba(31,94,91,0.12)" />
+        <div className="relative z-10 flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-primary-soft">
           <ExerciseDemo demo={exercise.demo} size={44} playing={false} />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="relative z-10 min-w-0 flex-1">
           <div className={`text-[14.5px] font-medium ${done ? "text-muted line-through" : "text-text"}`}>
             {displayName}
           </div>
@@ -55,14 +61,17 @@ export default function ExerciseCard({
       <motion.button
         type="button"
         onClick={onToggleDone}
+        onPointerDown={checkRipple.onPointerDown}
         whileTap={{ scale: 0.85 }}
         aria-label={done ? "Marcar como não feito" : "Marcar como feito"}
         aria-pressed={done}
-        className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+        className={`relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 transition-colors ${
           done ? "border-primary bg-primary text-white" : "border-line text-transparent hover:border-primary/50"
         }`}
       >
+        <RippleLayer ripples={checkRipple.ripples} color={done ? "rgba(255,255,255,0.5)" : "rgba(31,94,91,0.2)"} />
         <motion.svg
+          className="relative z-10"
           width="16"
           height="16"
           viewBox="0 0 16 16"

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { useRipple, RippleLayer } from "./Ripple";
 
 const TEAL = "#1F5E5B";
 const MUTED = "#5C726F";
@@ -88,22 +89,33 @@ interface EquipmentOptionProps {
 }
 
 export default function EquipmentOption({ label, icon, selected, onClick, index = 0 }: EquipmentOptionProps) {
+  const { ripples, onPointerDown } = useRipple();
+
   return (
     <motion.button
       type="button"
       onClick={onClick}
+      onPointerDown={onPointerDown}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.3 }}
       whileTap={{ scale: 0.96 }}
       aria-pressed={selected}
       className={clsx(
-        "flex flex-col items-center gap-1.5 rounded-xl border-[1.5px] p-3 text-center transition-colors",
+        "relative flex flex-col items-center gap-1.5 overflow-hidden rounded-xl border-[1.5px] p-3 text-center transition-colors",
         selected ? "border-primary bg-primary-soft" : "border-line bg-surface hover:border-primary/50"
       )}
     >
-      <EquipIcon icon={icon} color={selected ? TEAL : MUTED} />
-      <span className={clsx("text-[11.5px] leading-tight", selected ? "font-semibold text-primary-dark" : "text-muted")}>
+      <RippleLayer ripples={ripples} color="rgba(31,94,91,0.14)" />
+      <span className="relative z-10">
+        <EquipIcon icon={icon} color={selected ? TEAL : MUTED} />
+      </span>
+      <span
+        className={clsx(
+          "relative z-10 text-[11.5px] leading-tight",
+          selected ? "font-semibold text-primary-dark" : "text-muted"
+        )}
+      >
         {label}
       </span>
     </motion.button>
