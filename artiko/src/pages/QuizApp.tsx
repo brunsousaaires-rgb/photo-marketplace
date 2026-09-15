@@ -7,10 +7,12 @@ import Footer from "../components/Footer";
 import BackgroundDecor from "../components/BackgroundDecor";
 import OptionCard from "../components/OptionCard";
 import PillOption from "../components/PillOption";
+import EquipmentOption from "../components/EquipmentOption";
 import Button from "../components/Button";
 import AreaIcon from "../components/AreaIcon";
 import ResultPanel from "../components/ResultPanel";
-import Logo from "../components/Logo";
+import Mascot from "../components/Mascot";
+import SpeechBubble from "../components/SpeechBubble";
 import { AREAS, EQUIPS, GOALS, ROUTINES } from "../data/routines";
 import type { AreaId, EquipId, GoalId } from "../data/routines";
 
@@ -23,7 +25,7 @@ const stepVariants = {
 export default function QuizApp() {
   const [step, setStep] = useState(0);
   const [area, setArea] = useState<AreaId | null>(null);
-  const [equip, setEquip] = useState<EquipId | null>(null);
+  const [equip, setEquip] = useState<EquipId[]>([]);
   const [goal, setGoal] = useState<GoalId | null>(null);
   const [searchParams] = useSearchParams();
   const preview = searchParams.get("preview") === "1";
@@ -35,15 +37,30 @@ export default function QuizApp() {
   const restart = () => {
     setStep(0);
     setArea(null);
-    setEquip(null);
+    setEquip([]);
     setGoal(null);
     setUnlocked(false);
+  };
+
+  const toggleEquip = (id: EquipId) => {
+    setEquip((prev) => {
+      if (id === "nenhum") return prev.includes("nenhum") ? [] : ["nenhum"];
+      const withoutNenhum = prev.filter((e) => e !== "nenhum");
+      return withoutNenhum.includes(id) ? withoutNenhum.filter((e) => e !== id) : [...withoutNenhum, id];
+    });
   };
 
   const stepLabel = useMemo(() => {
     if (step === 1) return "Onde está o incômodo?";
     if (step === 2) return "O que você tem em casa?";
     if (step === 3) return "Qual é o seu objetivo agora?";
+    return "";
+  }, [step]);
+
+  const mascotLine = useMemo(() => {
+    if (step === 1) return "Toca na área onde você sente o incômodo.";
+    if (step === 2) return "Pode escolher mais de um — ou nenhum, sem problema!";
+    if (step === 3) return "Só mais uma e eu monto seu treino!";
     return "";
   }, [step]);
 
@@ -62,16 +79,14 @@ export default function QuizApp() {
               animate="center"
               exit="exit"
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className="pt-4 text-left sm:pt-10"
+              className="pt-2 text-left sm:pt-6"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 16 }}
-                className="mb-6 sm:hidden"
-              >
-                <Logo size={44} animated />
-              </motion.div>
+              <div className="mb-5 flex items-end gap-3">
+                <Mascot size={72} mood="wave" />
+                <SpeechBubble className="mb-2">
+                  Oi, eu sou o Arti! Vamos montar seu treino em menos de 1 minuto?
+                </SpeechBubble>
+              </div>
               <h1 className="font-display max-w-md text-[36px] font-semibold leading-[1.1] text-primary-dark sm:text-[52px]">
                 Movimento sem dor,
                 <br />
@@ -79,8 +94,8 @@ export default function QuizApp() {
               </h1>
               <p className="mt-4 max-w-md text-[16px] leading-relaxed text-muted sm:text-[18px]">
                 Responda 3 perguntas rápidas e receba um protocolo de exercícios
-                seguro para a sua articulação, feito para treinar em casa sem
-                piorar a dor.
+                seguro — com demonstração animada de cada movimento, pontos de
+                experiência e sequência de dias para você não esquecer de treinar.
               </p>
               <div className="mt-7 max-w-xs sm:max-w-[280px]">
                 <Button size="lg" fullWidth onClick={next}>
@@ -101,7 +116,10 @@ export default function QuizApp() {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8"
             >
-              <p className="mb-4 text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
+              <div className="mb-4 flex items-center gap-2.5">
+                <Mascot size={36} mood="idle" />
+                <p className="text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
+              </div>
               <div className="mb-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {AREAS.map((a, i) => (
                   <OptionCard
@@ -131,19 +149,24 @@ export default function QuizApp() {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8"
             >
-              <p className="mb-4 text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
-              <div className="mb-6 flex flex-col gap-2.5">
+              <div className="mb-1 flex items-center gap-2.5">
+                <Mascot size={36} mood="idle" />
+                <p className="text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
+              </div>
+              <p className="mb-4 pl-[46px] text-[12.5px] text-muted">{mascotLine}</p>
+              <div className="mb-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
                 {EQUIPS.map((e, i) => (
-                  <PillOption
+                  <EquipmentOption
                     key={e.id}
                     index={i}
                     label={e.label}
-                    selected={equip === e.id}
-                    onClick={() => setEquip(e.id)}
+                    icon={e.icon}
+                    selected={equip.includes(e.id)}
+                    onClick={() => toggleEquip(e.id)}
                   />
                 ))}
               </div>
-              <Button fullWidth disabled={!equip} onClick={next}>
+              <Button fullWidth disabled={equip.length === 0} onClick={next}>
                 Continuar
               </Button>
             </motion.section>
@@ -159,7 +182,10 @@ export default function QuizApp() {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8"
             >
-              <p className="mb-4 text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
+              <div className="mb-4 flex items-center gap-2.5">
+                <Mascot size={36} mood="idle" />
+                <p className="text-[13px] font-semibold tracking-wide text-primary">{stepLabel}</p>
+              </div>
               <div className="mb-6 flex flex-col gap-2.5">
                 {GOALS.map((g, i) => (
                   <PillOption
@@ -197,7 +223,7 @@ export default function QuizApp() {
                   </button>
                 </div>
               )}
-              <ResultPanel area={area} routine={routine} onRestart={restart} unlocked={unlocked} />
+              <ResultPanel area={area} routine={routine} equip={equip} onRestart={restart} unlocked={unlocked} />
             </motion.div>
           )}
         </AnimatePresence>

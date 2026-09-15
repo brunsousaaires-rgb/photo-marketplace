@@ -6,8 +6,29 @@ import Reveal from "../components/Reveal";
 import FAQItem from "../components/FAQItem";
 import Button from "../components/Button";
 import AreaIcon from "../components/AreaIcon";
+import Mascot from "../components/Mascot";
+import ExerciseDemo from "../components/ExerciseDemo";
 import { getCheckoutUrl } from "../lib/checkout";
 import { AREAS } from "../data/routines";
+
+const FEATURES = [
+  {
+    title: "O Arti guia você",
+    desc: "Um mascote animado acompanha cada etapa do quiz e comemora com você quando o treino é concluído.",
+  },
+  {
+    title: "Veja como fazer, não só leia",
+    desc: "Cada exercício tem uma demonstração animada do movimento — sem adivinhação, sem medo de fazer errado.",
+  },
+  {
+    title: "Pontos, sequência e conquistas",
+    desc: "Ganhe XP a cada exercício, suba de nível e mantenha sua sequência de dias treinando — como um jogo, para você não esquecer.",
+  },
+  {
+    title: "10 opções de equipamento",
+    desc: "Do zero equipamento a kettlebell e bola suíça — o protocolo se adapta automaticamente ao que você tem em casa.",
+  },
+];
 
 const PROBLEMS = [
   "Você para de treinar toda vez que a dor volta, e não sabe se está piorando ou é normal.",
@@ -32,7 +53,9 @@ const STEPS = [
 
 const INCLUDES = [
   "Protocolo completo de 6 semanas, nas 4 áreas (ombro, coluna, joelho, quadril)",
+  "Demonstração animada de cada exercício, com dica de execução",
   "Progressão em 3 fases: descompressão, fortalecimento, retorno funcional",
+  "Sistema de pontos, sequência de dias e conquistas para criar o hábito",
   "Acesso vitalício e atualizações futuras incluídas",
 ];
 
@@ -43,7 +66,7 @@ const FAQS = [
   },
   {
     q: "Preciso de equipamento?",
-    a: "Não. Todos os exercícios têm uma versão sem equipamento. Se você tiver elástico, halteres leves ou um banco, o protocolo se adapta automaticamente.",
+    a: "Não. Todos os exercícios têm uma versão sem equipamento. O quiz oferece 10 opções (elástico, halteres, kettlebell, banco, cadeira, bola suíça e mais) e adapta o protocolo automaticamente ao que você marcar que tem.",
   },
   {
     q: "Quanto tempo leva por dia?",
@@ -62,13 +85,16 @@ export default function SalesPage() {
       <main className="mx-auto mt-4 w-full max-w-xl flex-1 sm:max-w-2xl">
         {/* Hero */}
         <section className="pb-10 pt-6 sm:pb-16 sm:pt-14">
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 text-[13px] font-semibold tracking-wide text-primary"
-          >
-            PROTOCOLO DIGITAL · 6 SEMANAS
-          </motion.p>
+          <div className="mb-4 flex items-center gap-3">
+            <Mascot size={44} mood="wave" />
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-[13px] font-semibold tracking-wide text-primary"
+            >
+              PROTOCOLO DIGITAL · 6 SEMANAS
+            </motion.p>
+          </div>
           <motion.h1
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,6 +151,34 @@ export default function SalesPage() {
                 <div className="flex items-start gap-3.5 rounded-xl border border-line bg-surface p-4">
                   <span className="mt-0.5 flex-shrink-0 font-bold text-accent">✕</span>
                   <p className="text-[15px] leading-relaxed text-text">{p}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* Features / gamification */}
+        <section className="py-6">
+          <Reveal>
+            <h2 className="font-display mb-5 text-[24px] font-semibold text-primary-dark sm:text-[28px]">
+              Feito para você não esquecer de treinar
+            </h2>
+          </Reveal>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.08}>
+                <div className="flex h-full flex-col gap-3 rounded-xl border border-line bg-surface p-4">
+                  {i === 0 ? (
+                    <Mascot size={36} mood="happy" />
+                  ) : i === 1 ? (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
+                      <ExerciseDemo demo={{ type: "squat", variant: "full" }} size={30} playing />
+                    </div>
+                  ) : (
+                    <span className="text-[22px] leading-none">{i === 2 ? "🔥" : "🧩"}</span>
+                  )}
+                  <h3 className="text-[15.5px] font-semibold text-primary-dark">{f.title}</h3>
+                  <p className="text-[13.5px] leading-relaxed text-muted">{f.desc}</p>
                 </div>
               </Reveal>
             ))}
