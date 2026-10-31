@@ -9,5 +9,10 @@
     "dev": "node server.js",
     "test": "node test/sim.test.js"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
 }

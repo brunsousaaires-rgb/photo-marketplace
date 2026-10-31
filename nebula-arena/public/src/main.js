@@ -1,4 +1,5 @@
 import { LocalGame } from './localGame.js';
+import { OnlineGame } from './onlineGame.js';
 import { Renderer, colorOf } from './render.js';
 import { Input } from './input.js';
 import { Sfx } from './audio.js';
@@ -15,7 +16,13 @@ const renderer = new Renderer(canvas);
 const input = new Input(canvas);
 const sfx = new Sfx();
 const profile = loadProfile();
-const game = new LocalGame({ bots: 15 });
+const practice = new LocalGame({ bots: 15 });
+let game = practice;
+let mode = 'practice'; // practice | online
+let online = null;
+const ONLINE_OK = !!document.querySelector('meta[name="nebula-online"]') && 'WebSocket' in window;
+if (ONLINE_OK) $('#onlineBtn').classList.remove('hidden');
+else $('#practiceBtn').classList.add('primary');
 
 let state = 'menu'; // menu | playing | dead
 let deathTimer = 0;
@@ -57,7 +64,29 @@ $('#skins').addEventListener('click', (e) => {
   renderMenu();
 });
 
-function startGame() {
+async function startGame(m = mode) {
+  if (startGame.busy) return;
+  if (m === 'online') {
+    if (!online || online.status !== 'open') {
+      startGame.busy = true;
+      setMenuMsg('Conectando ao servidor…');
+      online?.close();
+      online = new OnlineGame(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+      online.onStatus = (st) => { if (st === 'closed' && game === online) connectionLost(); };
+      try {
+        await online.connect();
+        setMenuMsg('');
+      } catch {
+        startGame.busy = false;
+        setMenuMsg('Não foi possível conectar ao servidor online. Tente de novo ou jogue o treino.');
+        return;
+      } finally { startGame.busy = false; }
+    }
+    game = online;
+  } else {
+    game = practice;
+  }
+  mode = m;
   const name = ($('#nameInput').value.trim() || profile.name || 'Jogador').slice(0, 16);
   profile.name = name;
   saveProfile(profile);
@@ -85,9 +114,20 @@ function showHint() {
   showHint.t = setTimeout(() => (h.style.opacity = 0), profile.games < 2 ? 7000 : 3500);
 }
 
-$('#playBtn').addEventListener('click', startGame);
-$('#nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); });
-$('#againBtn').addEventListener('click', startGame);
+$('#onlineBtn').addEventListener('click', () => startGame('online'));
+$('#practiceBtn').addEventListener('click', () => startGame('practice'));
+function setMenuMsg(t) { $('#menuMsg').textContent = t; $('#menuMsg').classList.toggle('hidden', !t); }
+function connectionLost() {
+  game = practice;
+  state = 'menu';
+  $('#death').classList.add('hidden');
+  $('#hud').classList.add('hidden');
+  renderMenu();
+  $('#menu').classList.remove('hidden');
+  setMenuMsg('A conexão com o servidor caiu. Clique em Jogar online para entrar de novo.');
+}
+$('#nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(ONLINE_OK ? 'online' : 'practice'); });
+$('#againBtn').addEventListener('click', () => startGame());
 $('#menuBtn').addEventListener('click', () => {
   state = 'menu';
   $('#death').classList.add('hidden');
@@ -244,7 +284,7 @@ function updateHud(me) {
   }
   if (rank) lastRank = rank;
 
-  $('#stats').innerHTML = `<div>⚔ ${me.kills} <span>abates</span></div><div>✦ ${Math.floor(me.score)} <span>pontos</span></div>${me.streak >= 2 ? `<div>🔥 ${me.streak}</div>` : ''}`;
+  $('#stats').innerHTML = `${mode === 'online' ? `<div>🟢 <span>online</span></div>` : ''}<div>⚔ ${me.kills} <span>abates</span></div><div>✦ ${Math.floor(me.score)} <span>pontos</span></div>${me.streak >= 2 ? `<div>🔥 ${me.streak}</div>` : ''}`;
   $('#buffs').innerHTML = Object.entries(me.buffs).filter(([, v]) => v > 0)
     .map(([k, v]) => `<div class="buff" style="color:${POWERUPS[k].color}">${POWERUPS[k].label} ${v.toFixed(1)}s</div>`).join('');
 }
@@ -306,4 +346,4 @@ renderMenu();
 requestAnimationFrame(frame);
 
 // Expõe para depuração no console.
-window.nebula = { game, renderer, profile };
+window.nebula = { get game() { return game; }, renderer, profile };

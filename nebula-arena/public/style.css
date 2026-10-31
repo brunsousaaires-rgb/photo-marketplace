@@ -121,3 +121,6 @@ button.primary small { font-size: 12px; opacity: .8; letter-spacing: 0; }
   #stats { font-size: 12px; gap: 8px; }
   #topleft { max-width: calc(100vw - 190px); }
 }
+
+#menuMsg { margin: 0; font-size: 13px; color: var(--gold); }
+#practiceBtn.primary { font-size: 20px; }

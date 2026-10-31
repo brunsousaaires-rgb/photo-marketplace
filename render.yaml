@@ -1,0 +1,10 @@
+# Publicação no Render.com (plano gratuito): New → Blueprint → escolha este repositório.
+services:
+  - type: web
+    name: nebula-arena
+    runtime: node
+    rootDir: nebula-arena
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free

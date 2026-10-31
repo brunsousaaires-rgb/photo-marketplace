@@ -2,7 +2,7 @@
 
 Arena de tiro top-down para navegador, com progressão roguelite. Você coleta cristais de energia, sobe de nível, escolhe melhorias e derruba os outros jogadores para virar o **Rei da Arena 👑**.
 
-> **Fase atual:** modo de teste com **15 bots (NPCs)**. A arquitetura já está separada para virar **online multiplayer** sem reescrever o jogo (veja o roteiro abaixo).
+> **Modos:** **Online** (várias pessoas na mesma arena, com bots completando a sala até 16 participantes) e **Treino com bots** (roda só no navegador).
 
 ## ▶️ Como rodar
 
@@ -11,7 +11,9 @@ cd nebula-arena
 npm start          # abre em http://localhost:5173
 ```
 
-Não tem dependências: só precisa de Node 18+. Também dá para servir a pasta `public/` em qualquer hospedagem estática (Vercel, Netlify, GitHub Pages).
+Precisa de Node 18+ (`npm install` instala o `ws`, única dependência). Abra o endereço em duas abas ou dois computadores da mesma rede para jogarem juntos.
+
+Só a pasta `public/` numa hospedagem estática roda apenas o modo treino.
 
 ```bash
 npm test           # simula 3 minutos de partida só com bots e verifica o estado
@@ -52,16 +54,29 @@ public/
     input.js       teclado/mouse/touch → { mx, my, angle, shoot, dash }
     audio.js       efeitos sonoros via WebAudio
     profile.js     progresso da conta (localStorage)
-server.js          servidor estático (vira o servidor do jogo online)
+    onlineGame.js  sessão online (WebSocket, suavização entre snapshots)
+server/room.js     sala online: simulação autoritativa a 60 ticks/s + bots
+server.js          arquivos do jogo + WebSocket em /ws + /health
 ```
 
 O ponto principal é que **o cliente só conversa com a sessão** (`join`, `setInput`, `chooseUpgrade`, `respawn`, `update`, `drainEvents`, `world`). Hoje quem implementa essa interface é o `LocalGame`. No online, um `OnlineGame` com a mesma interface vai falar com o servidor por WebSocket.
 
-## 🌐 Roteiro para o online
+## 🌐 Como o online funciona
 
-1. **Servidor autoritativo:** `server.js` passa a rodar `shared/sim.js` a 60 ticks/s, recebe `input` de cada jogador via WebSocket (`ws`) e envia `snapshot()` + eventos a 20–30 Hz.
-2. **Cliente `OnlineGame`:** usa a mesma interface do `LocalGame`, com interpolação dos outros jogadores e predição do próprio movimento.
-3. **Bots completam as salas:** o servidor mantém, por exemplo, 16 participantes por sala e coloca bots onde faltam humanos (`bots.js` já funciona no servidor).
-4. **Contas e ranking global:** o perfil sai do `localStorage` e vai para o banco (Supabase/Postgres), com ranking diário e semanal.
-5. **Anti-trapaça:** o servidor valida tudo (o cliente só envia intenção), com limite de taxa de input e de tiro.
-6. **Deploy:** Node num host com WebSocket (Fly.io, Railway, Render) e salas por região.
+- O servidor roda a mesma `shared/sim.js` a 60 ticks/s e é a única autoridade. O cliente só envia a intenção (`mover`, `mirar`, `atirar`, `dash`, `melhoria`), já validada e com limite de mensagens.
+- Ele envia 20 snapshots por segundo para cada jogador, só com os orbes, tiros e eventos perto dele, o que economiza banda.
+- Cada sala tem até 24 humanos. Os bots completam até 16 participantes e saem quando entra gente. Uma sala nova abre quando a anterior lota.
+
+## 🚀 Publicar na internet (Render, grátis)
+
+1. Crie uma conta em https://render.com e conecte o GitHub.
+2. Clique em **New → Blueprint** e escolha este repositório. O `render.yaml` na raiz já configura tudo.
+3. Em ~2 minutos sai um link `https://nebula-arena-xxxx.onrender.com`, e é só mandar para os amigos.
+
+No plano gratuito o servidor "dorme" depois de 15 minutos sem acesso, e a primeira entrada demora uns 30 segundos.
+
+## 🔜 Próximos passos
+
+1. Contas e ranking global salvos em banco (Supabase/Postgres), com ranking diário e semanal.
+2. Predição do movimento do próprio jogador, para ficar ainda mais responsivo com internet lenta.
+3. Salas por região e escolha de sala/convite de amigos.
