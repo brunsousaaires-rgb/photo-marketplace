@@ -8,6 +8,7 @@ Arena de tiro top-down para navegador, com progressão roguelite. Você coleta c
 
 ```bash
 cd nebula-arena
+npm install
 npm start          # abre em http://localhost:5173
 ```
 
@@ -59,7 +60,7 @@ server/room.js     sala online: simulação autoritativa a 60 ticks/s + bots
 server.js          arquivos do jogo + WebSocket em /ws + /health
 ```
 
-O ponto principal é que **o cliente só conversa com a sessão** (`join`, `setInput`, `chooseUpgrade`, `respawn`, `update`, `drainEvents`, `world`). Hoje quem implementa essa interface é o `LocalGame`. No online, um `OnlineGame` com a mesma interface vai falar com o servidor por WebSocket.
+O ponto principal é que **o cliente só conversa com a sessão** (`join`, `setInput`, `chooseUpgrade`, `respawn`, `update`, `drainEvents`, `world`). Ela tem duas implementações: `LocalGame`, para o treino, e `OnlineGame`, que conversa com o servidor por WebSocket.
 
 ## 🌐 Como o online funciona
 
