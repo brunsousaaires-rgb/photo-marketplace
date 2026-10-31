@@ -1,0 +1,13 @@
+{
+  "name": "nebula-arena",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nébula Arena — arena de tiro top-down com progressão roguelite (modo local com bots; pronto para virar online).",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/sim.test.js"
+  },
+  "engines": { "node": ">=18" }
+}
