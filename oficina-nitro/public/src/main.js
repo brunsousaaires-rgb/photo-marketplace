@@ -549,7 +549,7 @@ function renderCustom() {
     <div class="reqs">${reqs}</div>
     <div class="reqnote">Peças extras que o cliente não pediu rendem gorjeta! ✨</div>`;
   const wanted = new Map(c.job.reqs.map((r) => [r.part, r.value]));
-  $('#tabs').innerHTML = PART_TABS.map((t) => `<button class="tab ${custom.tab === t.id ? 'on' : ''}" data-tab="${t.id}">${icon(t.icon)}<span>${t.name}${wanted.has(t.id) ? ' •' : ''}</span></button>`).join('');
+  $('#tabs').innerHTML = PART_TABS.map((t) => `<button class="tab ${custom.tab === t.id ? 'on' : ''}" data-tab="${t.id}">${icon(t.icon)}<span>${t.name}</span>${wanted.has(t.id) ? '<b class="wantdot"></b>' : ''}</button>`).join('');
   $('#options').innerHTML = PARTS[custom.tab].map((p) => {
     const locked = p.lvl > state.level;
     const on = sp[custom.tab] === p.id;

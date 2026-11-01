@@ -327,3 +327,5 @@ button { font: inherit; cursor: pointer; }
 .opt .price { display: flex; align-items: center; gap: 2px; font-family: var(--display); font-size: 12px; color: var(--muted); }
 .opt.on .price { color: var(--green-d); }
 .mbody > * { flex-shrink: 0; }
+.tab { position: relative; }
+.wantdot { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--pink); border: 3px solid var(--ink); }
