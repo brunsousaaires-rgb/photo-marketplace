@@ -1,0 +1,12 @@
+{
+  "name": "oficina-nitro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Oficina Nitro — jogo 3D de construir e gerenciar uma oficina de carros personalizados.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/logic.test.js"
+  },
+  "engines": { "node": ">=18" }
+}

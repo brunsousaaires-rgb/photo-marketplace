@@ -10,6 +10,10 @@ Este repositório também inclui, em [`frontend/`](./frontend), uma landing page
 
 Em [`zequinha-veiculos/`](./zequinha-veiculos) está o site institucional da **Zequinha Veículos** (Trindade – GO): uma experiência automotiva cinematográfica em Next.js + TypeScript + Tailwind + GSAP + Framer Motion, com abertura animada da Fiat Toro, estoque filtrável, páginas de veículo, avaliação para venda/troca e integração com WhatsApp. Veja [`zequinha-veiculos/README.md`](./zequinha-veiculos/README.md) para rodar e adicionar dados reais da loja.
 
+## 🔧 Oficina Nitro
+
+Em [`oficina-nitro/`](./oficina-nitro) está um jogo 3D de construir e gerenciar uma oficina de carros personalizados (consertar, lavar, pintar, equipar e decorar), com visual cartunesco. Rode com `cd oficina-nitro && npm start`. Veja [`oficina-nitro/README.md`](./oficina-nitro/README.md).
+
 ## 🌌 Nébula Arena
 
 Em [`nebula-arena/`](./nebula-arena) está um jogo web de arena (tiro top-down + progressão roguelite), jogável contra bots e estruturado para virar multiplayer online. Rode com `cd nebula-arena && npm start`. Veja [`nebula-arena/README.md`](./nebula-arena/README.md).

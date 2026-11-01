@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#8fd3f2" />
+  <title>Oficina Nitro</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='10' y='40' width='80' height='30' rx='12' fill='%23ff8a2a'/><rect x='28' y='24' width='42' height='24' rx='10' fill='%23ff8a2a'/><circle cx='30' cy='72' r='12' fill='%231d2b4f'/><circle cx='70' cy='72' r='12' fill='%231d2b4f'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="bubbles"></div>
+  <div id="fly"></div>
+
+  <div id="hud">
+    <div id="lvl" class="hud-box">
+      <div class="badge"><span id="lvlNum">1</span></div>
+      <div class="lvlinfo">
+        <b class="ol">Oficina Nitro</b>
+        <div class="xpbar"><div id="xpFill"></div><span id="xpText" class="ol"></span></div>
+      </div>
+    </div>
+    <div id="res">
+      <div class="pill" id="coinPill"><i class="coin"></i><span id="coins" class="ol">0</span></div>
+      <div class="pill" id="famePill" title="Fama: atrai mais clientes e gorjetas maiores"><i class="star">★</i><span id="fame" class="ol">0</span></div>
+      <button id="btnMute" class="mini" aria-label="Som">🔊</button>
+    </div>
+    <div id="tip" hidden></div>
+    <button id="btnMissions" class="round-btn blue" aria-label="Missões"><span class="ico">📋</span><span class="lbl ol">Missões</span><span class="dot" id="missionDot" hidden></span></button>
+    <button id="btnShop" class="round-btn yellow" aria-label="Loja"><span class="ico">🛠️</span><span class="lbl ol">Construir</span></button>
+    <div id="buildBar" hidden>
+      <span id="buildLabel" class="ol"></span>
+      <button id="buildOk" class="btn green">✔</button>
+      <button id="buildCancel" class="btn red">✕</button>
+    </div>
+  </div>
+
+  <div id="custom" hidden>
+    <div id="reqCard"></div>
+    <div id="sheet">
+      <div id="tabs"></div>
+      <div id="options"></div>
+      <div id="sheetFoot">
+        <button id="customClose" class="btn gray">Depois</button>
+        <button id="deliverBtn" class="btn green"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" hidden><div id="modalBox"></div></div>
+  <div id="toast"></div>
+  <div id="loading"><div class="ol">Abrindo a oficina…</div></div>
+
+  <script type="module" src="src/main.js"></script>
+  <script>
+    setTimeout(function () {
+      if (window.__started) return;
+      var l = document.getElementById('loading');
+      l.classList.add('err');
+      l.firstElementChild.textContent = 'Não foi possível carregar o jogo. Verifique sua internet e recarregue a página.';
+    }, 20000);
+  </script>
+</body>
+</html>
