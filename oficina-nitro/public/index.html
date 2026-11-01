@@ -33,11 +33,13 @@
     <div id="res">
       <div class="pill" id="coinPill"><i class="coin"></i><span id="coins" class="ol">0</span></div>
       <div class="pill" id="famePill" title="Fama: atrai mais clientes e gorjetas maiores"><i class="star">★</i><span id="fame" class="ol">0</span></div>
-      <button id="btnMute" class="mini" aria-label="Som">🔊</button>
+      <button id="btnMusic" class="mini" aria-label="Música"></button>
+      <button id="btnMute" class="mini" aria-label="Efeitos sonoros"></button>
     </div>
     <div id="tip" hidden></div>
-    <button id="btnMissions" class="round-btn blue" aria-label="Missões"><span class="ico">📋</span><span class="lbl ol">Missões</span><span class="dot" id="missionDot" hidden></span></button>
-    <button id="btnShop" class="round-btn yellow" aria-label="Loja"><span class="ico">🛠️</span><span class="lbl ol">Construir</span></button>
+    <button id="btnMissions" class="round-btn blue" aria-label="Missões"></button>
+    <button id="btnGarage" class="round-btn orange" aria-label="Garagem" hidden></button>
+    <button id="btnShop" class="round-btn yellow" aria-label="Construir"></button>
     <div id="buildBar" hidden>
       <span id="buildLabel" class="ol"></span>
       <button id="buildOk" class="btn green">✔</button>
@@ -55,6 +57,13 @@
         <button id="deliverBtn" class="btn green"></button>
       </div>
     </div>
+  </div>
+
+  <div id="race" hidden>
+    <div id="raceTop" class="ol"><b id="raceName"></b><span id="raceLap"></span></div>
+    <ol id="racePos"></ol>
+    <div id="raceCount"></div>
+    <button id="nitroBtn" aria-label="Nitro"><span class="ol">NITRO</span><i></i></button>
   </div>
 
   <div id="modal" hidden><div id="modalBox"></div></div>
