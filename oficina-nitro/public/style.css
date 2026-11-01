@@ -322,3 +322,8 @@ button { font: inherit; cursor: pointer; }
   .bub .want { padding-right: 4px; }
   .mini .svgi { width: 22px; height: 22px; }
 }
+
+.optrow .opt { height: auto; min-height: 118px; justify-content: flex-start; padding-top: 8px; }
+.opt .price { display: flex; align-items: center; gap: 2px; font-family: var(--display); font-size: 12px; color: var(--muted); }
+.opt.on .price { color: var(--green-d); }
+.mbody > * { flex-shrink: 0; }

@@ -1067,7 +1067,7 @@ export function buildTrack(path, width = 5.2, dirt = false) {
   // Linha de largada quadriculada + pórtico.
   const check = canvasTex(64, 16, (x) => { for (let i = 0; i < 16; i++) for (let k = 0; k < 4; k++) { x.fillStyle = (i + k) % 2 ? '#111' : '#fff'; x.fillRect(i * 4, k * 4, 4, 4); } });
   const line = new THREE.Mesh(plane(width, 1), new THREE.MeshStandardMaterial({ map: check, roughness: 0.8 }));
-  const p0 = path.at(0.5);
+  const p0 = path.at(path.L);
   line.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
   line.position.set(p0.x, 0.07, p0.z);
   g.add(line);

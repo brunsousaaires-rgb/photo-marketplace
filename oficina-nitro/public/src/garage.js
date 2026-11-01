@@ -139,7 +139,7 @@ export function openGarage(ctx, opts = {}) {
         const vis = partTab === 'color'
           ? `<span class="swatch" style="background:${p.hex}"></span>`
           : `<img class="pimg" src="${ctx.thumbs.part(partTab, p.id)}" alt="">`;
-        return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-style="${p.id}">${vis}<span>${p.name}</span>${locked ? `<span class="lock">Nv ${p.lvl}</span>` : on ? '<span class="lock">✔</span>' : `<span class="lock">${coin(PART_COST[partTab])}</span>`}</button>`;
+        return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-style="${p.id}">${vis}<span>${p.name}</span><span class="price">${locked ? `🔒 Nv ${p.lvl}` : on ? '✔ Atual' : coin(PART_COST[partTab])}</span></button>`;
       }).join('');
       opts = `<div id="tabs" class="ptabs">${tabs}</div><div class="optrow">${list}</div>`;
     } else {

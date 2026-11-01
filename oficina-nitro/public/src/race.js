@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { TRACK_PATH, lerpAngle } from './world.js';
 import * as L from './logic.js';
 
-const LANES = [-1.8, -0.6, 0.6, 1.8];
+// Grid de largada em duas filas (a pista comporta dois carros lado a lado).
+const GRID = [[-1.2, 0], [1.2, -2.2], [-1.2, -4.6], [1.2, -6.8]];
+const START = TRACK_PATH.L; // largada no meio da reta da frente
 
 export class Race {
   constructor(ctx, entry, onEnd) {
@@ -12,12 +14,12 @@ export class Race {
     this.onEnd = onEnd;
     this.tier = entry.tier;
     this.total = TRACK_PATH.total * this.tier.laps;
-    const lanes = [...LANES].sort(() => Math.random() - 0.5);
+    const grid = [...GRID].sort(() => Math.random() - 0.5);
     const me = { name: 'Você', me: true, spec: entry.car, st: entry.stats, nitro: 3 };
     const all = [me, ...entry.rivals.map((r) => ({ name: r.name, spec: r.spec, st: { top: r.top, acc: r.acc, grip: r.grip }, nitro: 1 + Math.floor(Math.random() * 2) }))];
     this.racers = all.map((r, i) => {
       const g = ctx.world.addRaceCar(r.spec);
-      return { ...r, g, lane: lanes[i], s: -(i % 2) * 3 - Math.floor(i / 2) * 1.2, v: 0, nitroT: 0, done: false, place: 0, heading: Math.PI / 2 };
+      return { ...r, g, lane: grid[i][0], s: START + grid[i][1], v: 0, nitroT: 0, done: false, place: 0, heading: Math.PI / 2 };
     });
     this.me = this.racers[0];
     this.finished = [];
@@ -102,12 +104,12 @@ export class Race {
       const acc = r.st.acc * (r.nitroT > 0 ? 2.2 : 1);
       r.v += Math.max(-14 * dt, Math.min(acc * dt, target - r.v));
       r.s += r.v * dt;
-      if (!r.me && r.nitro > 0 && !p.curve && r.s > TRACK_PATH.total * 0.3 && Math.random() < dt * 0.18) { r.nitro--; r.nitroT = 1.6; }
+      if (!r.me && r.nitro > 0 && !p.curve && r.s - START > TRACK_PATH.total * 0.3 && Math.random() < dt * 0.18) { r.nitro--; r.nitroT = 1.6; }
       if (r.nitroT > 0 && Math.random() < dt * 30) {
         const back = new THREE.Vector3(-Math.sin(r.heading) * 1.9, 0.35, -Math.cos(r.heading) * 1.9).add(r.g.position);
         ctx.world.puff(back, Math.random() < 0.5 ? '#ff8a2a' : '#ffd23d', 0.2, 0.6, 0.35);
       }
-      if (!r.done && r.s >= this.total) {
+      if (!r.done && r.s - START >= this.total) {
         r.done = true;
         this.finished.push(r);
         r.place = this.finished.length;
@@ -124,7 +126,7 @@ export class Race {
     this.updateNitroBtn();
     // Placar ao vivo.
     const order = [...this.finished, ...this.racers.filter((r) => !r.done).sort((a, b) => b.s - a.s)];
-    const lap = Math.min(this.tier.laps, Math.floor(Math.max(0, this.me.s) / TRACK_PATH.total) + 1);
+    const lap = Math.min(this.tier.laps, Math.floor(Math.max(0, this.me.s - START) / TRACK_PATH.total) + 1);
     $('#raceLap').textContent = `Volta ${lap}/${this.tier.laps}`;
     $('#racePos').innerHTML = order.map((r, i) => `<li class="${r.me ? 'me' : ''}"><b>${i + 1}º</b> ${r.name}</li>`).join('');
     if ((this.endAt && this.time >= this.endAt) || this.time > 150) this.finish(order);
