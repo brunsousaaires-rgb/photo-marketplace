@@ -1,4 +1,5 @@
 // Telas da atualização 3: menu, clientes fixos, álbum, caixas, peças raras, evento, equipe, foto, guincho e rotina online.
+import { VISUAL, setVisual } from './visual.js';
 import * as L from './logic.js';
 import { CHARACTERS, CRATES, RARITY, RARE_PARTS, EVENTS, EVENT_MILESTONES, STAFF_ROLES, STAFF_LEVEL_MULT, UNIFORMS, PART_LABEL, carType, part } from './data.js';
 import { icon, portrait, crateSvg } from './icons.js';
@@ -47,6 +48,7 @@ export function openMenu(ctx, { openSocial }) {
         ${setting('sound', 'Efeitos', !sf.muted)}
         ${sf.canBuzz ? setting('haptics', 'Vibração', sf.haptics) : ''}
         ${fs ? setting('full', 'Tela cheia', !!document.fullscreenElement) : ''}
+        ${setting('visual', 'Visual novo', VISUAL.premium)}
       </div></div>`;
     box.querySelectorAll('[data-mi]').forEach((b) => b.onclick = () => { ctx.sfx.play('click'); ctx.closeModal(); setTimeout(items[Number(b.dataset.mi)][3], 140); });
     box.querySelectorAll('[data-set]').forEach((b) => b.onclick = async () => {
@@ -54,6 +56,7 @@ export function openMenu(ctx, { openSocial }) {
       if (k === 'music') sf.toggleMusic();
       if (k === 'sound') sf.toggle();
       if (k === 'haptics') sf.toggleHaptics();
+      if (k === 'visual') { ctx.save?.(); setVisual(!VISUAL.premium); return; }
       if (k === 'full') {
         try { document.fullscreenElement ? await document.exitFullscreen() : await document.documentElement.requestFullscreen(); } catch {}
       }

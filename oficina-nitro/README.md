@@ -43,6 +43,8 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 
 **Cidade e trânsito:** em volta da oficina tem praça com calçadão de ondas, chafariz e coreto, lojinhas, igreja, prédio, campinho, parque com lago e patinhos, parquinho, mercadinho, ponto de ônibus e o letreiro NITRO no morro. Entre 4 e 8 veículos circulam por **rotas de waypoints**: entram por uma ponta do mapa e saem por outra, fazem curvas suaves nos cruzamentos, param no **semáforo** da rua transversal e dão a vez para a avenida no cruzamento sem semáforo. Seis modelos cartoon (hatch, sedã, picape, esportivo, van e jipe), mais táxi e van de entrega.
 
+**Visual 3D Cartoon Premium (protótipo, ligado por padrão):** a área da oficina foi remasterizada: luz quente do sol com preenchimento frio, neblina de distância e sombras ajustadas ao zoom; materiais PBR com texturas geradas em código (asfalto, concreto, bloquinhos de calçada, tijolo, reboco, metal ondulado, madeira, borracha, pintura com verniz); carros esculpidos (carroceria arredondada com caixas de roda e para-lamas, estufa de vidro com colunas, faróis com lente, retrovisores, rodas com pneu e porcas, rodas da frente que viram nas curvas); escritório, elevador e cabine detalhados; árvores com copa volumétrica (inclusive ipês floridos e pinheiros), arbustos com flores, tufos de grama instanciados, meio-fio, bueiros, hidrante, lixeiras e placas. Para comparar, use **Menu → Visual novo** (ou `?visual=classic` no endereço).
+
 **Câmera livre:** arrastar (mouse ou um dedo, com inércia), zoom na rodinha ou com dois dedos sempre no ponto do cursor ou dos dedos, limites do mapa e botão de voltar para a oficina.
 
 **Trânsito de verdade:** nenhum carro atravessa outro. As vagas de espera nunca ficam na frente da entrada de um box. A rua tem mão e contramão, os carros freiam e seguem o da frente, olham para trás antes de entrar na faixa e reservam o espaço da manobra. Quem chegou primeiro tem a preferência, e retornos em U, saídas de ré e pedestres são respeitados. Na pista, os carros ultrapassam pela outra faixa ou seguem colados atrás, inclusive ao dar volta em retardatários.
@@ -69,6 +71,8 @@ public/src/
   traffic.js  trânsito: corpos dos carros, freio, preferência, entrada na faixa, sem sobreposição
   roads.js    rede de ruas: faixas com sentido, cruzamentos, curvas, rotas e tipos de veículo
   city.js     a cidade em volta (praça, lojas, parque, campinho...) juntada em blocos por região
+  premium.js  visual novo: materiais e texturas, carro esculpido, prédios da oficina, vegetação, mobiliário
+  visual.js   chave do visual (novo ou clássico) e área do protótipo
   race.js     corrida: física simples, IA dos rivais, ultrapassagem, nitro, câmera seguindo
   garage.js   garagem: coleção, leilão, preparação, inscrição nas corridas
   preview.js  miniaturas 3D das peças/construções e visualizador giratório da garagem

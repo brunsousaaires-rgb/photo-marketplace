@@ -929,6 +929,7 @@ const setSoundIcons = () => {
   $('#btnMusic').classList.toggle('off', !sfx.musicOn);
 };
 ctx.onSettings = () => setSoundIcons();
+ctx.save = () => save();
 $('#btnMute').addEventListener('click', () => { sfx.toggle(); setSoundIcons(); });
 $('#btnMusic').addEventListener('click', () => { sfx.toggleMusic(); setSoundIcons(); toast(sfx.musicOn ? '🎵 Música ligada' : 'Música desligada'); });
 setSoundIcons();

@@ -11,6 +11,8 @@ import { laneTiles, canPlace, QUEUE_SLOTS, parcelsOf, landStatus, lotBounds } fr
 import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
 import { City, grassTexture } from './city.js';
 import { buildRoads, routePoints, VEHICLE_KINDS, ROAD } from './roads.js';
+import { VISUAL } from './visual.js';
+import { PM, TEX } from './premium.js';
 
 const LOT_D = GRID_H * TILE;
 const LOT_D_EXPORT = LOT_D;
@@ -33,6 +35,17 @@ export const TRACK_PATH = makeTrackPath(MAX_LOT_W / 2, -30, 15, 9);
 export const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 const easeOutBack = (t) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
 const rnd = (a, b) => a + Math.random() * (b - a);
+
+// Rodas da frente viram para o lado da curva (proporcional a quanto o carro está girando).
+function steer(v, u, dt) {
+  if (!u.front || !u.front.length) return;
+  const prev = v.prevH ?? v.heading;
+  const dh = Math.atan2(Math.sin(v.heading - prev), Math.cos(v.heading - prev));
+  v.prevH = v.heading;
+  const want = (v.step || 0) > 0.0005 ? Math.max(-0.5, Math.min(0.5, (dh / Math.max(dt, 1e-3)) * 0.32)) : (v.steer || 0) * 0.9;
+  v.steer = (v.steer || 0) + (want - (v.steer || 0)) * Math.min(1, dt * 8);
+  for (const w of u.front) w.rotation.y = v.steer;
+}
 const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 
 export function tileCenter(type, x, z) {
@@ -77,15 +90,27 @@ export class World {
     this.focusTween = null;
     this.followCam = null;
 
-    this.hemi = new THREE.HemisphereLight('#d6eeff', '#8a7a55', 1.25);
+    // Visual novo: luz do sol mais quente e forte, preenchimento frio do lado da câmera,
+    // céu menos chapado e neblina de distância (profundidade). Sem estourar nem escurecer demais.
+    const P = VISUAL.premium;
+    this.sunBase = P ? 2.8 : 2.4;
+    this.hemiBase = P ? 1.12 : 1.25;
+    this.hemi = new THREE.HemisphereLight(P ? '#d8ecff' : '#d6eeff', P ? '#9a8664' : '#8a7a55', this.hemiBase);
     this.scene.add(this.hemi);
-    const sun = new THREE.DirectionalLight('#fff0d6', 2.4);
+    if (P) {
+      this.fill = new THREE.DirectionalLight('#a9c9ff', 0.55);
+      this.fill.position.set(40, 30, 50);
+      this.scene.add(this.fill);
+      this.scene.fog = new THREE.Fog('#8fd3f2', 150, 330);
+      this.renderer.toneMappingExposure = 1.12;
+    }
+    const sun = new THREE.DirectionalLight(P ? '#fff1da' : '#fff0d6', this.sunBase);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera;
     sc.left = -38; sc.right = 38; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 140;
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.03;
+    sun.shadow.bias = P ? -0.0002 : -0.0004;
+    sun.shadow.normalBias = P ? 0.022 : 0.03;
     this.sun = sun;
     this.scene.add(sun, sun.target);
 
@@ -134,11 +159,13 @@ export class World {
     grass.receiveShadow = true;
     S.add(grass);
 
-    const side = new THREE.Mesh(new THREE.BoxGeometry(200, 0.24, 1.6), mat('#e4e1da'));
+    const P = VISUAL.premium;
+    const sideM = P ? PM.pavers([200 / 2.4, 1.6 / 1.2]) : mat('#e4e1da');
+    const side = new THREE.Mesh(new THREE.BoxGeometry(200, 0.24, 1.6), sideM);
     side.position.set(MAX_LOT_W / 2, 0.0, LOT_D + 0.8);
     side.receiveShadow = true;
     S.add(side);
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(200, 8.6), mat('#4a4f5c', { r: 0.95 }));
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(200, 8.6), P ? PM.asphalt([200 / 6, 8.6 / 6]) : mat('#4a4f5c', { r: 0.95 }));
     road.rotation.x = -Math.PI / 2;
     road.position.set(MAX_LOT_W / 2, 0.01, LOT_D + 5.9);
     road.receiveShadow = true;
@@ -147,10 +174,22 @@ export class World {
     mesh(box(230, 0.02, 0.12), mat('#e6e6e6'), 25, 0.03, QUEUE_Z + 1.55, S).castShadow = false; // faixa das vagas
     this.slotMarks = new THREE.Group();
     S.add(this.slotMarks);
-    const side2 = new THREE.Mesh(new THREE.BoxGeometry(200, 0.24, 1.6), mat('#e4e1da'));
+    const side2 = new THREE.Mesh(new THREE.BoxGeometry(200, 0.24, 1.6), sideM);
     side2.position.set(MAX_LOT_W / 2, 0, LOT_D + 11);
     side2.receiveShadow = true;
     S.add(side2);
+    if (P) {
+      // Meio-fio de concreto com quina arredondada nas duas calçadas, e bueiros e tampas de bueiro.
+      const curb = PM.concrete([60, 1]);
+      for (const z of [LOT_D + 1.6, LOT_D + 10.2]) { const c = mesh(rbox(200, 0.3, 0.26, 0.08), curb, MAX_LOT_W / 2, 0.06, z, S); c.castShadow = false; }
+      const drainM = new THREE.MeshStandardMaterial({ map: TEX.grate(), roughness: 0.6, metalness: 0.4 });
+      const holeM = new THREE.MeshStandardMaterial({ map: TEX.manhole(), roughness: 0.7, metalness: 0.3, transparent: true });
+      for (let x = -60; x < 120; x += 14) {
+        if (JUNCTIONS.some((j) => Math.abs(j - x) < 5)) continue;
+        for (const z of [LOT_D + 1.95, LOT_D + 9.85]) { const d = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.42), drainM); d.rotation.x = -Math.PI / 2; d.position.set(x + 3, 0.02, z); S.add(d); }
+        const mh = new THREE.Mesh(new THREE.CircleGeometry(0.42, 20), holeM); mh.rotation.x = -Math.PI / 2; mh.position.set(x + 9, 0.02, LOT_D + 7.8); S.add(mh);
+      }
+    }
     // Postes da rua (acendem à noite).
     for (let x = -20; x < 90; x += 16) {
       const p = buildBuilding('poste');
@@ -188,12 +227,16 @@ export class World {
       this.lotTile = c;
     }
     for (const p of parcels) {
-      const t = new THREE.CanvasTexture(this.lotTile);
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(p.w, p.h);
-      const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 });
-      m.envMapIntensity = 0.12;
+      let m;
+      if (VISUAL.premium) m = PM.concrete([p.w, p.h]);
+      else {
+        const t = new THREE.CanvasTexture(this.lotTile);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(p.w, p.h);
+        m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 });
+        m.envMapIntensity = 0.12;
+      }
       const slab = new THREE.Mesh(new THREE.BoxGeometry(p.w * TILE, 0.2, p.h * TILE), m);
       slab.position.set((p.x + p.w / 2) * TILE, -0.08, (p.z + p.h / 2) * TILE);
       slab.receiveShadow = true;
@@ -201,7 +244,7 @@ export class World {
       G.add(slab);
     }
     // Bordas: junta quadrados vizinhos numa linha só de cerca viva.
-    const hedge = mat('#3fa63f', { flat: true });
+    const hedge = VISUAL.premium ? PM.hedge([4, 1]) : mat('#3fa63f', { flat: true });
     const runs = new Map();
     const push = (key, a) => { if (!runs.has(key)) runs.set(key, []); runs.get(key).push(a); };
     for (const k of own) {
@@ -294,6 +337,12 @@ export class World {
     c.updateProjectionMatrix();
     this.sun.position.copy(this.target).add(new THREE.Vector3(-22, 40, -6));
     this.sun.target.position.copy(this.target);
+    if (VISUAL.premium) {
+      // Sombra do tamanho do que aparece na tela: perto fica nítida, longe cobre tudo.
+      const half = Math.max(14, Math.min(60, (h / 2) * 1.25 * Math.max(1, this.aspect * 0.8)));
+      const sc = this.sun.shadow.camera;
+      if (Math.abs(sc.right - half) > 0.5) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
+    }
   }
 
   // ---------- câmera ----------
@@ -492,7 +541,7 @@ export class World {
 
   drawLanes(state) {
     this.lanesGroup.clear();
-    const asphalt = mat('#5d6270', { r: 0.95 });
+    const asphalt = VISUAL.premium ? PM.asphalt([1, 3]) : mat('#5d6270', { r: 0.95 });
     const yellow = mat('#ffd23d');
     for (const b of state.buildings) {
       const d = BUILDINGS[b.type];
@@ -853,6 +902,7 @@ export class World {
     for (let i = 0; i < this.traffic.length; i++) {
       const t = this.traffic[i], u = t.g.userData;
       for (const w of u.wheels) w.rotation.x += (t.step || 0) / u.wheelR;
+      steer(t, u, dt);
       u.body.position.y = Math.sin(this.time * 16 + t.prio) * 0.02 * Math.min(1, (t.cur || 0) / 4);
     }
     this.walkerIn -= dt;
@@ -1004,7 +1054,8 @@ export class World {
     const zones = Object.values(this.net.lanes).filter((l) => l.to === node.id && l !== laneIn && (Math.abs(l.dir[0]) > 0.5 ? 'x' : 'z') === axis).map((l) => {
       const e = l.pts[1];
       // Esperando há mais de 10 s: só vigia quem já está bem perto (a preferencial freia um pouco).
-      const r = (self?.holdT || 0) > 10 ? 5 : 12;
+      const ht = self?.holdT || 0;
+      const r = ht > 20 ? 2.5 : ht > 10 ? 5 : 12;
       return { x: e[0] - l.dir[0] * r, z: e[1] - l.dir[1] * r, ux: l.dir[0], uz: l.dir[1], hl: r, hw: 1.1 };
     });
     for (const o of all) {
@@ -1025,9 +1076,11 @@ export class World {
     this.scene.background.copy(this.skyDay).lerp(this.skyDusk, Math.min(1, dusk) * 0.6).lerp(this.skyNight, n);
     const rk = this.rainK;
     this.scene.background.lerp(this.skyRain, rk * 0.65 * (1 - n));
-    this.sun.intensity = 2.4 * (1 - n * 0.8) * (1 - rk * 0.62);
+    this.sun.intensity = this.sunBase * (1 - n * 0.8) * (1 - rk * 0.62);
+    if (this.fill) this.fill.intensity = 0.55 * (1 - n * 0.6);
+    if (this.scene.fog) this.scene.fog.color.copy(this.scene.background);
     this.sun.color.set('#fff0d6').lerp(new THREE.Color('#ff9a5a'), Math.min(1, dusk) * 0.7).lerp(new THREE.Color('#8aa0ff'), n);
-    this.hemi.intensity = 1.25 * (1 - n * 0.5) * (1 - rk * 0.32);
+    this.hemi.intensity = this.hemiBase * (1 - n * 0.5) * (1 - rk * 0.32);
     this.hemi.color.set('#d6eeff').lerp(new THREE.Color('#5a6ab0'), n);
     if (Math.abs(n - this.night) > 0.01) {
       this.night = n;
@@ -1054,6 +1107,8 @@ export class World {
     this.updateStreet(dt);
     this.updateStaff(dt);
     this.city.update(dt, Math.max(0, this.night));
+    // LOD por zoom: tufos de grama e florzinhas só aparecem quando a câmera está perto o bastante.
+    if (this.city.details) this.city.details.visible = this.zoom >= 0.6 && !this.visit;
     for (let i = 0; i < this.swaying.length; i++) this.swaying[i].rotation.z = Math.sin(T * 1.2 + i) * 0.03;
 
     if (this.followCam) {
@@ -1187,6 +1242,7 @@ export class World {
         g.rotation.y = v.heading;
       }
       const moving = v.step > 0.0005;
+      steer(v, u, dt);
       if (moving) {
         for (const w of u.wheels) w.rotation.x += (v.step / u.wheelR) * (v.rev ? -1 : 1);
         if (Math.random() < dt * 8) this.puff(g.position.clone().setY(0.3).add(new THREE.Vector3(-Math.sin(v.heading) * u.length * 0.55, 0, -Math.cos(v.heading) * u.length * 0.55)), '#cfd3da', 0.12, 0.6, 0.6);

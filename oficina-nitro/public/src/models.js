@@ -1,7 +1,10 @@
 // Modelos 3D procedurais (sem arquivos externos): carros, pessoas, construções, decoração, pista.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, TILE } from './data.js';
+import { VISUAL } from './visual.js';
+import * as P from './premium.js';
 
 // ---------- utilidades ----------
 const matCache = new Map();
@@ -36,6 +39,41 @@ export function glow(color, dayE, nightE, dayI = 0.3, nightI = 1.6, o = {}) {
 
 const geoCache = new Map();
 
+// Junta as peças paradas de um grupo (filhos diretos que são malhas) em uma malha por material:
+// o visual fica igual e cai o número de chamadas de desenho. Grupos filhos (rodas, braço do elevador,
+// prato giratório...) e malhas referenciadas em userData continuam separados.
+export function compact(group) {
+  const keep = new Set(Object.values(group.userData || {}).filter((v) => v && v.isObject3D));
+  const buckets = new Map();
+  for (const o of [...group.children]) {
+    if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || o.isInstancedMesh || o.renderOrder) continue;
+    o.updateMatrix();
+    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    g.applyMatrix4(o.matrix);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k);
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    if (o.material.vertexColors && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3));
+    if (!o.material.vertexColors && g.attributes.color) g.deleteAttribute('color');
+    g.clearGroups();
+    const key = o.material.uuid + (o.castShadow ? 'c' : 'n');
+    if (!buckets.has(key)) buckets.set(key, { m: o.material, cast: o.castShadow, list: [], src: [] });
+    const b = buckets.get(key);
+    b.list.push(g);
+    b.src.push(o);
+  }
+  for (const b of buckets.values()) {
+    if (b.src.length < 2) continue;
+    const merged = mergeGeometries(b.list, false);
+    if (!merged) continue;
+    for (const o of b.src) group.remove(o);
+    const m = new THREE.Mesh(merged, b.m);
+    m.castShadow = b.cast;
+    m.receiveShadow = true;
+    group.add(m);
+  }
+  return group;
+}
+
 // Libera da memória o que é exclusivo de um carro (pintura, adesivos, neon) quando ele sai do mapa.
 // Geometrias e materiais compartilhados (do cache) ficam.
 export function disposeCar(g) {
@@ -56,7 +94,7 @@ export const rbox = (w, h, d, r = 0.08) => cached(`rb${f2(w)},${f2(h)},${f2(d)},
 export const box = (w, h, d) => cached(`b${f2(w)},${f2(h)},${f2(d)}`, () => new THREE.BoxGeometry(w, h, d));
 export const cyl = (rt, rb, h, s = 16) => cached(`c${f2(rt)},${f2(rb)},${f2(h)},${s}`, () => new THREE.CylinderGeometry(rt, rb, h, s));
 export const sph = (r, ws = 12, hs = 10) => cached(`s${f2(r)},${ws},${hs}`, () => new THREE.SphereGeometry(r, ws, hs));
-const torus = (r, t, rs = 8, ts = 16, arc = Math.PI * 2) => cached(`t${f2(r)},${f2(t)},${rs},${ts},${f2(arc)}`, () => new THREE.TorusGeometry(r, t, rs, ts, arc));
+export const torus = (r, t, rs = 8, ts = 16, arc = Math.PI * 2) => cached(`t${f2(r)},${f2(t)},${rs},${ts},${f2(arc)}`, () => new THREE.TorusGeometry(r, t, rs, ts, arc));
 const plane = (w, h) => cached(`pl${f2(w)},${f2(h)}`, () => new THREE.PlaneGeometry(w, h));
 
 export function mesh(geo, material, x = 0, y = 0, z = 0, parent = null) {
@@ -116,7 +154,7 @@ function canvasTex(w, h, draw, repeat = null) {
   return t;
 }
 
-function sign(text, w, h, opts = {}) {
+export function sign(text, w, h, opts = {}) {
   const tex = textTexture(text, opts);
   const m = new THREE.Mesh(plane(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: opts.glow ? 1.2 : 0.3 }));
   if (opts.glow || opts.night) {
@@ -140,7 +178,7 @@ export function glowTexture() {
   return glowTex;
 }
 
-function lamp(parent, x, y, z, color = '#ffd27a', dist = 9, max = 12) {
+export function lamp(parent, x, y, z, color = '#ffd27a', dist = 9, max = 12) {
   const l = new THREE.PointLight(color, 0, dist, 1.8);
   l.position.set(x, y, z);
   l.userData.max = max;
@@ -160,7 +198,7 @@ const CAR_DIMS = {
 };
 
 // Brilho branco nos vidros (reflexo de desenho animado) e sombrinha de contato no chão.
-const shine = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, depthWrite: false });
+export const shine = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, depthWrite: false });
 shine.userData.keep = true;
 let contactMat = null;
 function contactShadow() {
@@ -178,6 +216,19 @@ function contactShadow() {
   return contactMat;
 }
 
+// Sombra suave no chão (oclusão de ambiente "pintada") com a opacidade pedida.
+const softMats = new Map();
+export function softShadow(w, d, opacity = 0.5) {
+  const key = opacity.toFixed(2);
+  let m = softMats.get(key);
+  if (!m) { m = contactShadow().clone(); m.opacity = opacity; m.userData.keep = true; softMats.set(key, m); }
+  const p = new THREE.Mesh(plane(1, 1), m);
+  p.rotation.x = -Math.PI / 2;
+  p.scale.set(w, d, 1);
+  p.renderOrder = -1;
+  return p;
+}
+
 export const WHEELS = {
   padrao: { r: 0.36, tw: 0.3, rim: '#c3c8d2', rimR: 0.55, rm: 0.3 },
   esportiva: { r: 0.38, tw: 0.32, rim: '#ff3b3b', rimR: 0.68, rm: 0.2, spokes: 5 },
@@ -191,6 +242,7 @@ export const WHEELS = {
 const LIGHT_COLORS = new Set(['branco', 'amarelo', 'prata', 'dourado', 'ciano']);
 
 export function buildWheel(def) {
+  if (VISUAL.premium) return P.premiumWheel(def);
   const g = new THREE.Group();
   const tire = mesh(cyl(def.r, def.r, def.tw, 22), mat('#24252b', { r: 0.95 }));
   tire.rotation.z = Math.PI / 2;
@@ -248,6 +300,7 @@ function paintMaterial(col) {
     m.envMapIntensity = 0.8;
     return m;
   }
+  if (VISUAL.premium && !col.chrome && !col.matte && !col.metal) return P.carPaint(col.hex);
   const m = new THREE.MeshStandardMaterial({
     color: col.hex,
     roughness: col.chrome ? 0.06 : col.matte ? 0.95 : col.metal ? 0.22 : 0.3,
@@ -303,10 +356,14 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
   const dark = mat('#2b2d36', { r: 0.6 });
   const trim = mat('#3a3d48', { r: 0.5, m: 0.2 });
   const glass = mat('#2a4068', { r: 0.08, m: 0.4, t: 0.62 });
-  const { L, W, H, CL, CZ, CH } = D;
+  const { L, W, CL, CZ, CH } = D;
   const lift = spec.wheels === 'offroad' ? 0.16 : 0;
   const bottom = wd.r * 0.72 + lift;
+  // No visual novo a carroceria cobre a roda (caixa de roda recortada), então nunca fica mais baixa que ela.
+  const H = VISUAL.premium ? Math.max(D.H, 2 * wd.r + 0.06 + lift - bottom) : D.H;
   const top = bottom + H;
+  if (VISUAL.premium) P.premiumCarBody(body, { D, L, W, H, CL, CZ, CH, bottom, top, r: wd.r, paint, lift });
+  else {
 
   // Carroceria + para-choques.
   mesh(rbox(W, H, L, 0.18), paint, 0, bottom + H / 2, 0, body);
@@ -362,6 +419,13 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
     const hl = mesh(box(W * 0.1, 0.3, 0.02), shine, -W * 0.2, top + CH * 0.6, CZ + CL / 2 + 0.07, body);
     hl.rotation.z = 0.55; hl.castShadow = false;
   }
+  // Retrovisores, maçanetas e linhas das portas.
+  for (const sx of [-1, 1]) {
+    mesh(rbox(0.12, 0.1, 0.18, 0.03), paint, sx * (W * 0.46 + 0.07), top + 0.1, CZ + CL / 2 - 0.12, body);
+    mesh(box(0.02, H * 0.62, 0.025), mat('#22252e'), sx * (W / 2 + 0.002), bottom + H * 0.5, CZ + CL / 2 - 0.05, body).castShadow = false;
+    mesh(box(0.03, 0.04, 0.14), trim, sx * (W / 2 + 0.01), bottom + H * 0.72, CZ + 0.15, body).castShadow = false;
+  }
+  }
   // Jipe: estepe na traseira e bagageiro no teto.
   if (D.jeep) {
     const spare = mesh(cyl(0.34, 0.34, 0.24, 16), mat('#2b2d36', { r: 0.8 }), 0, bottom + H * 0.62, -L / 2 - 0.13, body);
@@ -371,12 +435,6 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
     for (const sx of [-1, 1]) mesh(rbox(0.08, 0.08, CL * 0.95, 0.03), mat('#3a3d48', { m: 0.5, r: 0.4 }), sx * W * 0.33, top + CH + 0.06, CZ, body);
     for (const sz of [-1, 0, 1]) mesh(box(W * 0.7, 0.05, 0.07), mat('#3a3d48', { m: 0.5, r: 0.4 }), 0, top + CH + 0.1, CZ + sz * CL * 0.32, body);
     mesh(rbox(W * 1.02, 0.14, 0.2, 0.05), mat('#3a3d48', { m: 0.5, r: 0.4 }), 0, bottom + 0.1, L / 2 + 0.06, body);
-  }
-  // Retrovisores, maçanetas e linhas das portas.
-  for (const sx of [-1, 1]) {
-    mesh(rbox(0.12, 0.1, 0.18, 0.03), paint, sx * (W * 0.46 + 0.07), top + 0.1, CZ + CL / 2 - 0.12, body);
-    mesh(box(0.02, H * 0.62, 0.025), mat('#22252e'), sx * (W / 2 + 0.002), bottom + H * 0.5, CZ + CL / 2 - 0.05, body).castShadow = false;
-    mesh(box(0.03, 0.04, 0.14), trim, sx * (W / 2 + 0.01), bottom + H * 0.72, CZ + 0.15, body).castShadow = false;
   }
   if (driver && !D.van) {
     const skin = face?.skin || ['#f1c09a', '#c98a5e', '#8a5a3a', '#f6d2b4'][Math.abs(hash(spec.color + spec.type)) % 4];
@@ -396,10 +454,12 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
   }
 
   // Rodas.
-  const wheels = [];
+  const wheels = [], front = [];
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const w = buildWheel(wd);
     w.position.set(sx * (W / 2 - wd.tw / 2 + 0.06), wd.r, sz * (L / 2 - 0.66));
+    // Rodas da frente esterçam nas curvas: gira em y (direção) depois de x (rolagem).
+    if (sz > 0) { w.rotation.order = 'YXZ'; front.push(w); }
     root.add(w);
     wheels.push(w);
   }
@@ -542,7 +602,9 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
   cs.position.y = 0.035;
   cs.renderOrder = -1;
   root.add(cs);
-  root.userData = { body, wheels, wheelR: wd.r, paint, neon, setDirt, setRust, spec: { ...spec }, length: L, width: W };
+  root.userData = { body, wheels, front, wheelR: wd.r, paint, neon, setDirt, setRust, spec: { ...spec }, length: L, width: W };
+  compact(body);
+  for (const w of wheels) compact(w);
   return root;
 }
 
@@ -623,7 +685,7 @@ export function animatePerson(p, t, mode) {
 }
 
 // ---------- construções ----------
-const TIER = ['#2f7bea', '#46c35a', '#8a5cf0', '#ff8a2a', '#e8b33a'];
+export const TIER = ['#2f7bea', '#46c35a', '#8a5cf0', '#ff8a2a', '#e8b33a'];
 
 function slab(w, d, color = '#d5d9e0') {
   const s = mesh(rbox(w * TILE - 0.16, 0.22, d * TILE - 0.16, 0.08), mat(color), 0, 0.11, 0);
@@ -631,12 +693,12 @@ function slab(w, d, color = '#d5d9e0') {
   return s;
 }
 
-function hazard(g, width, z) {
+export function hazard(g, width, z) {
   const n = 8, sw = width / n;
   for (let i = 0; i < n; i++) mesh(box(sw, 0.03, 0.26), mat(i % 2 ? '#22252e' : '#ffc93c'), -width / 2 + sw * (i + 0.5), 0.235, z, g).castShadow = false;
 }
 
-function levelStars(g, level, y, z) {
+export function levelStars(g, level, y, z) {
   for (let i = 0; i < level; i++) mesh(sph(0.1, 8, 6), mat('#ffd23d', { e: '#ffb800', ei: 0.6 }), -0.4 * (level - 1) / 2 + i * 0.4, y, z, g);
 }
 
@@ -1095,7 +1157,18 @@ function buildDecor(type) {
 
 export function buildBuilding(type, level = 1, uniform = null) {
   let g;
-  switch (type) {
+  // Visual novo (protótipo): prédios da oficina e decoração do lote remasterizados.
+  const prem = VISUAL.premium && {
+    escritorio: () => P.premiumEscritorio(),
+    elevador: () => P.premiumElevador(level),
+    cabine: () => P.premiumCabine(level),
+    arvore: () => P.premiumTree(7, 1.05),
+    flores: () => P.premiumFlowerBed(),
+    banco: () => P.premiumBench(),
+    poste: () => P.premiumStreetLamp(),
+  }[type];
+  if (prem) g = prem();
+  else switch (type) {
     case 'guincho': g = buildGuincho(level); break;
     case 'elevador': g = buildElevador(level); break;
     case 'cabine': g = buildCabine(level); break;
@@ -1114,6 +1187,10 @@ export function buildBuilding(type, level = 1, uniform = null) {
     posto: ['#e8473c', '#ffffff', 2.3, 0.3, -Math.PI / 2],
     restauracao: ['#ff8a2a', '#22252e', 1.5, 1.4, -Math.PI / 2],
   }[type];
+  if (prem) {
+    compact(g);
+    for (const c of g.children) if (c.isGroup && !Object.values(g.userData).includes(c)) compact(c);
+  }
   if (staff) {
     const mech = buildMechanic(uniform || staff[0], staff[1]);
     mech.position.set(staff[2], 0.22, staff[3]);

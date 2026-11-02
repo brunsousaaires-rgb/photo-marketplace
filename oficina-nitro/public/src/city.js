@@ -5,6 +5,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mat, mesh, box, cyl, sph, rbox, buildTree, buildPerson, animatePerson, buildBuilding, buildCar, textTexture, glow } from './models.js';
 import { ROAD } from './roads.js';
+import { VISUAL, inProto } from './visual.js';
+import * as P from './premium.js';
+
+let treeSeed = 1;
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -95,7 +99,10 @@ function bake(group) {
     if (!o.isMesh || Array.isArray(o.material)) return;
     let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(o.matrixWorld);
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k);
+    // Material com cor por vértice precisa do atributo; sem ele, todos do bloco ficam sem.
+    if (o.material.vertexColors && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3));
+    if (!o.material.vertexColors && g.attributes.color) g.deleteAttribute('color');
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     if (!g.attributes.normal) g.computeVertexNormals();
     g.clearGroups();
@@ -142,7 +149,8 @@ function flowerBed(g, x, z, s = 1) {
 }
 
 function tree(g, x, z, s = 1) {
-  const t = buildTree(s, Math.floor(Math.random() * 3));
+  // Visual novo na área do protótipo: espécies variadas (copa, ipê florido, pinheiro).
+  const t = VISUAL.premium && inProto(x, z) ? P.premiumTree(treeSeed++, s) : buildTree(s, Math.floor(Math.random() * 3));
   t.position.set(x, 0, z);
   t.rotation.y = rnd(0, 6);
   g.add(t);
@@ -150,6 +158,7 @@ function tree(g, x, z, s = 1) {
 }
 
 function bush(g, x, z, s = 1) {
+  if (VISUAL.premium && inProto(x, z)) { const b = P.premiumBush(treeSeed++, s * 1.1); b.position.set(x, 0, z); g.add(b); return; }
   const c = pick(['#4cb848', '#3fa63f', '#5ccc52']);
   mesh(sph(0.55 * s, 9, 7), mat(c, { flat: true }), x, 0.35 * s, z, g).scale.set(1, 0.75, 1);
   mesh(sph(0.4 * s, 9, 7), mat(c, { flat: true }), x + 0.4 * s, 0.3 * s, z + 0.15 * s, g).scale.set(1, 0.75, 1);
@@ -784,9 +793,12 @@ export class City {
     Dyn.add(this.birds);
     this.birdT = 6;
 
+    if (VISUAL.premium) this.buildProto(S);
+
     this.static = bake(S);
     this.dyn = Dyn;
     this.scene.add(this.static, this.dyn);
+    if (this.details) this.scene.add(this.details);
   }
 
   // Ciclo de 18 s: avenida verde 8 s, amarelo 2 s; transversal verde 6 s, amarelo 2 s.
@@ -798,6 +810,33 @@ export class City {
 
   signalGo(axis) {
     return this.signalState(axis) === 'green';
+  }
+
+  // Protótipo do visual novo em volta da oficina: árvores na calçada do outro lado, mobiliário urbano
+  // e tufos de grama/flores instanciados (somem com o zoom bem afastado).
+  buildProto(S) {
+    const D = this.D, { C1 } = ROAD;
+    const near = (x) => [C1, ROAD.C2].some((j) => Math.abs(j - x) < 6);
+    // Árvores em canteiro do outro lado da avenida (longe das casas e dos postes da praça) e arbustos entre elas.
+    for (const x of [12, 23, 34, 45, 56]) {
+      if (near(x)) continue;
+      const t = P.streetPlanterTree(treeSeed++);
+      t.position.set(x, 0, D + 12.95);
+      S.add(t);
+    }
+    for (const x of [-13.5, -8, -2.6, 2.8, 17.5, 28.5, 39.5, 50.5]) if (!near(x)) bush(S, x, D + 12.7, 0.85);
+    for (const [x, kind] of [[-8.5, 'lixo'], [21, 'lixo'], [39, 'lixo'], [8, 'hidrante'], [50, 'hidrante']]) {
+      const o = kind === 'lixo' ? P.trashBin() : P.hydrant();
+      o.position.set(x, 0.12, D + 11.62);
+      S.add(o);
+    }
+    for (const x of [C1 - 3.3, C1 + 3.3]) for (const z of [D + 0.4, D + 11.3]) { const b = P.bollard(); b.position.set(x, 0.12, z); S.add(b); }
+    const pare = P.streetSign('pare'); pare.position.set(C1 + 3.9, 0, D - 1.2); pare.rotation.y = Math.PI; S.add(pare);
+    const pare2 = P.streetSign('pare'); pare2.position.set(C1 - 3.9, 0, D + 12.6); S.add(pare2);
+    const vel = P.streetSign('40'); vel.position.set(-27, 0, D + 12.4); S.add(vel);
+    const vel2 = P.streetSign('40'); vel2.position.set(60.5, 0, D - 0.8); vel2.rotation.y = Math.PI; S.add(vel2);
+    const avoid = (x, z) => this.blocked(x, z) || (z > D - 1.2 && z < D + 13.4) || (x > -17 && x < 59 && z > -11 && z < D + 1);
+    this.details = P.scatterDetails([[-36, -16, 66, 44]], avoid, 1100, 9);
   }
 
   update(dt, night = 0) {
