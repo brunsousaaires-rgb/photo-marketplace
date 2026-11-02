@@ -54,9 +54,55 @@ const ICONS = {
 };
 ICONS['tab-cor'] = ICONS.estilo;
 
+// Volume nos ícones: cada cor chapada vira um degradê (mais clara em cima, um pouco mais escura embaixo).
+const hexRgb = (h) => { const n = parseInt(h.length === 4 ? h.slice(1).split('').map((c) => c + c).join('') : h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const mix = (h, t, k) => { const [r, g, b] = hexRgb(h); const m = (c) => Math.round(c + (t - c) * k); return `rgb(${m(r)},${m(g)},${m(b)})`; };
+// Os degradês ficam num <svg> invisível único da página (um por cor): o texto de cada ícone não muda
+// entre chamadas (os balões só redesenham quando o conteúdo muda) e nenhum degradê some quando o
+// ícone que o declarou é escondido.
+const NS = 'http://www.w3.org/2000/svg';
+let defsEl = null;
+const known = new Set();
+function grad(h) {
+  const id = 'gx' + h.slice(1);
+  if (known.has(h) || typeof document === 'undefined') return id;
+  known.add(h);
+  if (!defsEl) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+    defsEl = document.createElementNS(NS, 'defs');
+    svg.appendChild(defsEl);
+    document.body.appendChild(svg);
+  }
+  const lg = document.createElementNS(NS, 'linearGradient');
+  lg.setAttribute('id', id);
+  for (const [k, v] of [['x1', '0'], ['y1', '0'], ['x2', '0.35'], ['y2', '1']]) lg.setAttribute(k, v);
+  for (const [o, c] of [['0', mix(h, 255, 0.38)], ['0.55', h], ['1', mix(h, 0, 0.16)]]) {
+    const st = document.createElementNS(NS, 'stop');
+    st.setAttribute('offset', o); st.setAttribute('stop-color', c);
+    lg.appendChild(st);
+  }
+  defsEl.appendChild(lg);
+  return id;
+}
+const SHADED = new Map();
+function shade(name, body) {
+  let t = SHADED.get(name);
+  if (!t) {
+    t = body.replace(/fill="(#[0-9a-fA-F]{3,6})"/g, (all, hex) => {
+      const h = hex.toLowerCase();
+      if (h === '#1d2b4f') return all; // contornos e olhinhos continuam chapados
+      return `fill="url(#${grad(h.length === 4 ? '#' + h.slice(1).split('').map((c) => c + c).join('') : h)})"`;
+    });
+    SHADED.set(name, t);
+  }
+  return t;
+}
+
 export function icon(name, cls = '') {
   const body = ICONS[name] || ICONS.revisao;
-  return `<svg class="svgi ${cls}" viewBox="0 0 48 48" aria-hidden="true">${body}</svg>`;
+  return `<svg class="svgi ${cls}" viewBox="0 0 48 48" aria-hidden="true">${shade(ICONS[name] ? name : 'revisao', body)}</svg>`;
 }
 
 export function faceFor(pct) {

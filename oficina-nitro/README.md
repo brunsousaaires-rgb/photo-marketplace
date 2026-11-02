@@ -45,6 +45,8 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 
 **Visual 3D Cartoon Premium (protótipo, ligado por padrão):** a área da oficina foi remasterizada: luz quente do sol com preenchimento frio, neblina de distância e sombras ajustadas ao zoom; materiais PBR com texturas geradas em código (asfalto, concreto, bloquinhos de calçada, tijolo, reboco, metal ondulado, madeira, borracha, pintura com verniz); carros esculpidos (carroceria arredondada com caixas de roda e para-lamas, estufa de vidro com colunas, faróis com lente, retrovisores, rodas com pneu e porcas, rodas da frente que viram nas curvas); escritório, elevador e cabine detalhados; árvores com copa volumétrica (inclusive ipês floridos e pinheiros), arbustos com flores, tufos de grama instanciados, meio-fio, bueiros, hidrante, lixeiras e placas. Para comparar, use **Menu → Visual novo** (ou `?visual=classic` no endereço).
 
+**Remasterização 2 (cidade toda e interface):** o visual novo agora cobre o mapa inteiro: casas com telhado de telha, venezianas, floreiras, cerquinha e caixa de correio; lojas com vitrine de prateleiras, toldo de babado, letreiro iluminado e platibanda; prédio com varandas de vidro; igreja com vitrais e relógio; mercadinho com bancas de frutas; lago e chafariz com água que desliza; meio-fio nas ruas laterais, baias para os carros parados e postes de praça. Lava-jato, loja de peças, posto, restauração, showroom e guincho também foram refeitos. Para o celular continuar leve, as peças de cor lisa viram um material único com cor por vértice, as malhas juntadas ficam indexadas e a cidade libera a cópia da geometria depois de enviá-la à placa de vídeo (menos chamadas de desenho que antes, com bem mais detalhe). A interface ganhou ícones com volume, HUD com medalha de nível, moedas com brilho e botões de bala de goma, janelas com cabeçalho listrado, Menu com blocos coloridos e chaves de liga/desliga, dica com a mascote, tela de carregamento com logotipo e confete ao subir de nível.
+
 **Câmera livre:** arrastar (mouse ou um dedo, com inércia), zoom na rodinha ou com dois dedos sempre no ponto do cursor ou dos dedos, limites do mapa e botão de voltar para a oficina.
 
 **Trânsito de verdade:** nenhum carro atravessa outro. As vagas de espera nunca ficam na frente da entrada de um box. A rua tem mão e contramão, os carros freiam e seguem o da frente, olham para trás antes de entrar na faixa e reservam o espaço da manobra. Quem chegou primeiro tem a preferência, e retornos em U, saídas de ré e pedestres são respeitados. Na pista, os carros ultrapassam pela outra faixa ou seguem colados atrás, inclusive ao dar volta em retardatários.
@@ -72,6 +74,7 @@ public/src/
   roads.js    rede de ruas: faixas com sentido, cruzamentos, curvas, rotas e tipos de veículo
   city.js     a cidade em volta (praça, lojas, parque, campinho...) juntada em blocos por região
   premium.js  visual novo: materiais e texturas, carro esculpido, prédios da oficina, vegetação, mobiliário
+  cityp.js    visual novo da cidade: casas, lojas, prédio, igreja, mercadinho, ponto de ônibus, lago, meio-fio
   visual.js   chave do visual (novo ou clássico) e área do protótipo
   race.js     corrida: física simples, IA dos rivais, ultrapassagem, nitro, câmera seguindo
   garage.js   garagem: coleção, leilão, preparação, inscrição nas corridas

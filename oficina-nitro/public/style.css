@@ -564,3 +564,155 @@ canvas#scene { touch-action: none; }
 
 /* Balões: âncora no canto (o empilhamento e a escala são feitos no JS). */
 .bub { transform-origin: 0 0; }
+
+/* ===================== Interface 2.0: painéis com brilho, botões de bala, ícones com volume ===================== */
+:root {
+  --panel: #eef5ff;
+  --glass: linear-gradient(#34497c, #1d2b4f);
+  --gloss: linear-gradient(rgba(255,255,255,.62), rgba(255,255,255,.08));
+}
+.svgi { filter: drop-shadow(0 1.5px 0 rgba(29,43,79,.22)); }
+
+/* Faixas suaves no alto e embaixo da tela: o HUD lê melhor em cima do cenário claro. */
+#hud::before, #hud::after { content: ''; position: absolute; left: 0; right: 0; pointer-events: none; z-index: -1; }
+#hud::before { top: 0; height: calc(110px + env(safe-area-inset-top, 0px)); background: linear-gradient(rgba(16,28,58,.28), rgba(16,28,58,0)); }
+#hud::after { bottom: 0; height: calc(120px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(rgba(16,28,58,0), rgba(16,28,58,.3)); }
+body[data-mode="race"] #hud::before, body[data-mode="race"] #hud::after, body[data-mode="tow"] #hud::after { display: none; }
+
+/* Nível: medalha com aro dourado e brilho; barra de XP com listras andando. */
+#lvl { filter: drop-shadow(0 4px 0 rgba(16,28,58,.35)); }
+.badge { position: relative; width: 62px; height: 62px; background: radial-gradient(circle at 38% 28%, #b9dcff, #4f9bff 45%, #1f5bb5 100%); border: 4px solid var(--ink); box-shadow: inset 0 0 0 3px #ffd23d, inset 0 0 0 5px #b07a00, inset 0 -8px 0 5px rgba(0,0,0,.18), 0 3px 0 var(--ink); }
+.badge::before { content: ''; position: absolute; left: 12px; top: 8px; width: 24px; height: 12px; border-radius: 50%; background: rgba(255,255,255,.55); transform: rotate(-20deg); }
+.badge span { position: relative; font-size: 30px; }
+.lvlinfo { background: var(--glass); border: 3px solid var(--ink); border-left: 0; padding: 6px 14px 7px 20px; margin-left: -14px; border-radius: 0 16px 16px 0; box-shadow: inset 0 2px 0 rgba(255,255,255,.18); }
+.lvlinfo b { letter-spacing: .3px; }
+.xpbar { height: 19px; background: #0d1830; box-shadow: inset 0 3px 0 rgba(0,0,0,.35); }
+#xpFill { position: relative; background: linear-gradient(#c8ff9a, #5ed13a 55%, #34a01d); box-shadow: inset 0 -3px 0 rgba(0,0,0,.15), inset 0 3px 0 rgba(255,255,255,.35); overflow: hidden; }
+#xpFill::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.22) 0 6px, transparent 6px 12px); background-size: 17px 17px; animation: xpstripes 1s linear infinite; }
+@keyframes xpstripes { to { background-position: 17px 0; } }
+
+/* Moedas e fama: cápsula escura com a moeda grande saindo pela esquerda. */
+.coin { position: relative; background: radial-gradient(circle at 34% 28%, #fffbe0 0 14%, #ffe066 16% 48%, #f5b400 50% 74%, #d48a00 76% 100%); border: 2px solid #8a5200; box-shadow: inset 0 0 0 2px rgba(255,240,170,.85), 0 1px 0 rgba(0,0,0,.25); }
+.coin::after { content: ''; position: absolute; left: 22%; top: 18%; width: 30%; height: 18%; border-radius: 50%; background: rgba(255,255,255,.8); transform: rotate(-25deg); }
+.pill { position: relative; background: var(--glass); box-shadow: inset 0 2px 0 rgba(255,255,255,.2), 0 3px 0 rgba(0,0,0,.28); padding: 0 14px 0 36px; min-width: 112px; justify-content: flex-end; }
+.pill .coin, .pill .star { position: absolute; left: -10px; top: 50%; transform: translateY(-50%); }
+.pill .coin { font-size: 36px; }
+.pill .star { font-size: 40px; line-height: 1; color: #ffd23d; text-shadow: 0 3px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink), 1.5px 1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px -1.5px 0 var(--ink); }
+.mini { border-radius: 50%; background: radial-gradient(circle at 40% 30%, #ffffff, #dbe7f7); box-shadow: inset 0 -4px 0 #b8c6dc, 0 3px 0 var(--ink); }
+
+/* Botões grandes de baixo: bala de goma com brilho em cima e rótulo numa fitinha escura. */
+.round-btn { border-radius: 26px; }
+.round-btn::before { content: ''; position: absolute; left: 7px; right: 7px; top: 5px; height: 36%; border-radius: 18px 18px 50% 50% / 18px 18px 30% 30%; background: var(--gloss); pointer-events: none; }
+.round-btn .ico { position: relative; margin-top: -8px; }
+.round-btn .ico .svgi { width: 48px; height: 48px; }
+.round-btn .lbl { position: absolute; left: 50%; bottom: -11px; transform: translateX(-50%); background: linear-gradient(#34497c, #1d2b4f); border: 2px solid var(--ink); border-radius: 10px; padding: 1px 9px 2px; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 0 rgba(0,0,0,.3); }
+.round-btn:hover .ico { animation: wiggle .5s; }
+@keyframes wiggle { 30% { transform: rotate(-8deg) scale(1.06); } 60% { transform: rotate(6deg) scale(1.04); } }
+.dot { background: linear-gradient(#ff7a68, #e8392a); box-shadow: inset 0 2px 0 rgba(255,255,255,.4), 0 2px 0 rgba(0,0,0,.25); }
+
+/* Evento: fita com brilho. Dica: balão com a mecânica-mascote. */
+#eventPill { border-radius: 18px; box-shadow: inset 0 2px 0 rgba(255,255,255,.35), 0 3px 0 var(--ink); }
+#eventPill::before { content: ''; position: absolute; left: 6px; right: 6px; top: 3px; height: 40%; border-radius: 12px 12px 40% 40%; background: linear-gradient(rgba(255,255,255,.35), rgba(255,255,255,0)); pointer-events: none; }
+#tip { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 16px 8px 8px; border-radius: 20px; background: linear-gradient(#ffffff, #eef4fd); box-shadow: 0 4px 0 var(--ink), 0 10px 22px rgba(16,28,58,.25); }
+#tip .tipico { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--ink); background: radial-gradient(circle at 40% 30%, #ffe9a8, #ffc93c); display: grid; place-items: center; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); }
+#tip .tipico .svgi { width: 34px; height: 34px; }
+#tip .tiptext { min-width: 0; }
+
+/* Aviso rápido no meio da tela: faixa dourada. */
+.toastmsg { background: linear-gradient(#fff8d0, #ffd23d); border-radius: 18px; padding: 10px 20px; box-shadow: 0 4px 0 var(--ink), 0 12px 26px rgba(16,28,58,.3); }
+
+/* Balões do mundo: brilho de bala. */
+.bub .in { background: linear-gradient(#ffffff, #eef4fd); box-shadow: 0 3px 0 var(--ink), 0 8px 14px rgba(16,28,58,.18); }
+.bub .in::after { background: #eef4fd; }
+
+/* Botões comuns: brilho em cima. */
+.btn { position: relative; overflow: hidden; }
+.btn::after { content: ''; position: absolute; left: 5px; right: 5px; top: 3px; height: 42%; border-radius: 12px 12px 40% 40% / 12px 12px 30% 30%; background: linear-gradient(rgba(255,255,255,.42), rgba(255,255,255,0)); pointer-events: none; }
+.btn:disabled::after { opacity: .4; }
+
+/* Janelas: fundo com bolinhas, cabeçalho com listras e sombra funda. */
+#modal { background: radial-gradient(circle at 50% 40%, rgba(16,28,58,.32), rgba(16,28,58,.62)); }
+#modalBox { border-radius: 28px; background: radial-gradient(rgba(47,123,234,.07) 2px, transparent 2.6px) 0 0 / 18px 18px, linear-gradient(#f5f9ff, #dfeafb); box-shadow: 0 8px 0 var(--ink), 0 24px 50px rgba(0,0,0,.35); }
+.mhead { overflow: hidden; background: repeating-linear-gradient(-55deg, rgba(255,255,255,.1) 0 14px, transparent 14px 28px), linear-gradient(#8cc4ff, #3c8cf0 55%, #2a6ccc); box-shadow: inset 0 3px 0 rgba(255,255,255,.45), inset 0 -5px 0 rgba(0,0,0,.14); }
+.mhead.gold { background: repeating-linear-gradient(-55deg, rgba(255,255,255,.16) 0 14px, transparent 14px 28px), linear-gradient(#fff08a, #ffcf3a 55%, #f0a800); }
+.mhead.pink { background: repeating-linear-gradient(-55deg, rgba(255,255,255,.14) 0 14px, transparent 14px 28px), linear-gradient(#ffb0dc, #ff4fa3 55%, #e0308a); }
+.mhead h2 { display: flex; align-items: center; gap: 8px; }
+.mhead h2 .svgi { width: 34px; height: 34px; }
+.mclose { background: radial-gradient(circle at 40% 30%, #ffa08f, #f0503c 60%, #c9301f); box-shadow: inset 0 -4px 0 rgba(0,0,0,.2), inset 0 2px 0 rgba(255,255,255,.4), 0 3px 0 var(--ink); }
+.mclose:active { transform: translateY(calc(-50% + 2px)); }
+.card { background: linear-gradient(#ffffff, #f2f7fe); border-radius: 20px; box-shadow: 0 4px 0 var(--ink), inset 0 -5px 0 rgba(29,43,79,.05); transition: transform .12s; }
+.card.locked { background: linear-gradient(#eef1f6, #dde3ec); }
+.statline { border-radius: 14px; background: linear-gradient(#ffffff, #f4f8fe); }
+.mprog, .evbar { box-shadow: inset 0 3px 0 rgba(0,0,0,.08); }
+.mprog i, .evbar > i { box-shadow: inset 0 3px 0 rgba(255,255,255,.35), inset 0 -3px 0 rgba(0,0,0,.12); }
+.mtabs { background: rgba(29,43,79,.08); border-radius: 18px; padding: 5px; gap: 6px; }
+.mtabs .tab { border-radius: 14px; box-shadow: 0 3px 0 var(--ink); }
+.tab.on { background: linear-gradient(#8cc4ff, #3c8cf0 60%, #2a6ccc); box-shadow: 0 3px 0 var(--ink), inset 0 2px 0 rgba(255,255,255,.4); }
+.sect { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.sect::after { content: ''; flex: 1; height: 3px; border-radius: 2px; background: linear-gradient(90deg, rgba(29,43,79,.25), rgba(29,43,79,0)); }
+
+/* Loja: miniatura num palco claro. */
+.shopcard .thumb { background: radial-gradient(ellipse at 50% 70%, #ffffff 0 42%, #d9e7fb 72%, #c6d9f5 100%); border-radius: 18px; border: 2px solid #c9d9ef; padding: 4px; }
+.shopcard .big { display: grid; place-items: center; }
+.shopcard .big .svgi { width: 64px; height: 64px; }
+
+/* Menu: blocos com ícone numa moeda colorida. */
+.menuitem { --c: #2f7bea; padding: 12px 8px 10px; gap: 4px; }
+.menuitem .mico { width: 66px !important; height: 66px !important; padding: 8px; border-radius: 50%; border: 3px solid var(--ink); background: radial-gradient(circle at 36% 28%, color-mix(in srgb, var(--c) 35%, #fff), var(--c) 62%, color-mix(in srgb, var(--c) 75%, #000)); box-shadow: inset 0 -5px 0 rgba(0,0,0,.18), inset 0 3px 0 rgba(255,255,255,.35), 0 3px 0 var(--ink); filter: none; }
+.menuitem:active { transform: translateY(2px); }
+.menuitem h4 { margin-top: 4px; }
+
+/* Configurações: chaves de liga/desliga. */
+.settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.setting { justify-content: flex-start; gap: 8px; padding: 7px 10px; border-radius: 16px; background: linear-gradient(#ffffff, #f1f6fd); min-width: 0; text-align: left; }
+.setting .sico .svgi { width: 26px; height: 26px; }
+.setting .slabel { flex: 1; min-width: 0; line-height: 1.1; overflow-wrap: anywhere; }
+.setting i { position: relative; flex: none; width: 46px; height: 26px; border-radius: 14px; border: 3px solid var(--ink); background: #c9d3e2; font-size: 0; box-shadow: inset 0 3px 0 rgba(0,0,0,.12); transition: background .2s; }
+.setting i::after { content: ''; position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #ffffff, #e3e9f2); border: 2px solid var(--ink); box-sizing: border-box; transition: transform .2s cubic-bezier(.3,1.6,.5,1); }
+.setting.on i { background: linear-gradient(#8ff06a, #4fc52f); }
+.setting.on i::after { transform: translateX(20px); }
+
+/* Diálogo dos clientes: cartão com brilho. */
+#dialog { background: linear-gradient(#ffffff, #eef4fd); box-shadow: 0 6px 0 var(--ink), 0 14px 30px rgba(16,28,58,.28); }
+
+/* Tela de carregamento: céu, logotipo e barra. */
+#loading { background: radial-gradient(circle at 50% 120%, #c9f0ff 0 30%, transparent 60%), linear-gradient(#5fbfee, #a8e2fa 60%, #d9f4ff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+#loading .logo { order: -1; display: flex; flex-direction: column; align-items: center; gap: 4px; animation: logobob 2.4s ease-in-out infinite; }
+#loading .logo .svgi { width: 120px; height: 120px; filter: drop-shadow(0 6px 0 rgba(16,28,58,.25)); }
+#loading .logo b { font-family: var(--display); font-weight: 400; font-size: 46px; letter-spacing: 1px; line-height: 1; }
+#loading .logo b span { color: #ffd23d; }
+#loading .lmsg { font-size: 18px; }
+#loading .lbar { width: min(260px, 70vw); height: 18px; border-radius: 10px; border: 3px solid var(--ink); background: #0d1830; overflow: hidden; box-shadow: 0 3px 0 rgba(16,28,58,.3); }
+#loading .lbar i { display: block; height: 100%; width: 40%; border-radius: 8px; background: linear-gradient(#c8ff9a, #5ed13a 55%, #34a01d); animation: lbar 1.3s ease-in-out infinite; }
+@keyframes lbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@keyframes logobob { 50% { transform: translateY(-8px) rotate(-1.5deg); } }
+#loading.err .logo, #loading.err .lbar { display: none; }
+
+/* Confete (subir de nível, prêmios). */
+.confetti { position: fixed; top: -20px; width: 10px; height: 16px; border-radius: 3px; z-index: 60; pointer-events: none; animation: confall var(--d, 2.2s) cubic-bezier(.25,.6,.4,1) forwards; }
+@keyframes confall { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(var(--dx, 0px), 105vh) rotate(var(--r, 720deg)); opacity: 0; } }
+.raybg { position: relative; }
+.raybg::before { content: ''; position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(255,200,40,.55) 0 12deg, transparent 12deg 30deg, rgba(255,200,40,.55) 30deg 42deg, transparent 42deg 60deg, rgba(255,200,40,.55) 60deg 72deg, transparent 72deg 90deg, rgba(255,200,40,.55) 90deg 102deg, transparent 102deg 120deg, rgba(255,200,40,.55) 120deg 132deg, transparent 132deg 150deg, rgba(255,200,40,.55) 150deg 162deg, transparent 162deg 180deg, rgba(255,200,40,.55) 180deg 192deg, transparent 192deg 210deg, rgba(255,200,40,.55) 210deg 222deg, transparent 222deg 240deg, rgba(255,200,40,.55) 240deg 252deg, transparent 252deg 270deg, rgba(255,200,40,.55) 270deg 282deg, transparent 282deg 300deg, rgba(255,200,40,.55) 300deg 312deg, transparent 312deg 330deg, rgba(255,200,40,.55) 330deg 342deg, transparent 342deg 360deg); animation: spin 9s linear infinite; z-index: -1; -webkit-mask: radial-gradient(circle, #000 30%, transparent 70%); mask: radial-gradient(circle, #000 30%, transparent 70%); }
+
+@media (max-width: 600px) {
+  .badge { width: 54px; height: 54px; }
+  .badge span { font-size: 26px; }
+  .pill { min-width: 92px; padding-left: 32px; }
+  .pill .coin { font-size: 31px; }
+  .pill .star { font-size: 34px; }
+  .round-btn .ico .svgi { width: 40px; height: 40px; }
+  .round-btn .lbl { font-size: 12px; bottom: -10px; padding: 0 7px 1px; }
+  .menuitem .mico { width: 58px !important; height: 58px !important; }
+  #tip .tipico { width: 38px; height: 38px; }
+  #tip .tipico .svgi { width: 28px; height: 28px; }
+  .settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setting { font-size: 13px; padding: 6px 8px; gap: 6px; }
+  .setting i { width: 40px; height: 24px; }
+  .setting i::after { width: 16px; height: 16px; }
+  .setting.on i::after { transform: translateX(16px); }
+  #loading .logo b { font-size: 38px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .round-btn .lbl { font-size: 11px; bottom: -9px; }
+  .round-btn .ico .svgi { width: 36px; height: 36px; }
+}

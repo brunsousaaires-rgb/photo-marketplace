@@ -42,21 +42,69 @@ const geoCache = new Map();
 // Junta as peças paradas de um grupo (filhos diretos que são malhas) em uma malha por material:
 // o visual fica igual e cai o número de chamadas de desenho. Grupos filhos (rodas, braço do elevador,
 // prato giratório...) e malhas referenciadas em userData continuam separados.
+// Materiais lisos (só cor, sem textura, opacos, sem brilho próprio) podem virar um só material com
+// cor por vértice: dezenas de cores diferentes passam a ser desenhadas numa chamada só.
+export function plainMat(m) {
+  return !!m && m.isMeshStandardMaterial && !m.isMeshPhysicalMaterial && !m.map && !m.transparent && !m.alphaTest
+    && !m.normalMap && !m.userData.night && !m.userData.solo && !m.userData.base && m.emissive.getHex() === 0 && m.opacity === 1;
+}
+export function vcMat(m) {
+  const key = 'vc|' + [m.roughness.toFixed(2), m.metalness.toFixed(2), m.flatShading ? 1 : 0, (m.envMapIntensity ?? 1).toFixed(2), m.side].join('|');
+  let v = matCache.get(key);
+  if (!v) {
+    v = new THREE.MeshStandardMaterial({ roughness: m.roughness, metalness: m.metalness, flatShading: m.flatShading, vertexColors: true, side: m.side });
+    v.envMapIntensity = m.envMapIntensity;
+    v.userData.keep = true;
+    matCache.set(key, v);
+  }
+  return v;
+}
+// Cópia indexada da geometria (para juntar sem triplicar vértices: esferas, caixas e cilindros
+// reaproveitam vértices; o que não tem índice ganha um índice simples).
+export function indexedClone(src) {
+  const g = src.clone();
+  if (!g.index) {
+    const n = g.attributes.position.count;
+    const idx = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+    for (let i = 0; i < n; i++) idx[i] = i;
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+  }
+  return g;
+}
+// Prepara a geometria (já no lugar) para ser juntada: tira atributos extras e, se o material for liso,
+// grava a cor dele nos vértices. Devolve o material a usar no bloco.
+export function bakeGeo(g, m) {
+  for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k);
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  if (!g.attributes.normal) g.computeVertexNormals();
+  g.clearGroups();
+  const n = g.attributes.position.count;
+  if (plainMat(m)) {
+    const c = m.color, old = m.vertexColors && g.attributes.color ? g.attributes.color.array : null;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const f = old ? [old[i * 3], old[i * 3 + 1], old[i * 3 + 2]] : [1, 1, 1];
+      arr[i * 3] = c.r * f[0]; arr[i * 3 + 1] = c.g * f[1]; arr[i * 3 + 2] = c.b * f[2];
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(arr, 3));
+    return vcMat(m);
+  }
+  if (m.vertexColors && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  if (!m.vertexColors && g.attributes.color) g.deleteAttribute('color');
+  return m;
+}
+
 export function compact(group) {
   const keep = new Set(Object.values(group.userData || {}).filter((v) => v && v.isObject3D));
   const buckets = new Map();
   for (const o of [...group.children]) {
-    if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || o.isInstancedMesh || o.renderOrder) continue;
+    if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || o.isInstancedMesh || o.renderOrder || o.userData.parcel != null) continue;
     o.updateMatrix();
-    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const g = indexedClone(o.geometry);
     g.applyMatrix4(o.matrix);
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k);
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-    if (o.material.vertexColors && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3));
-    if (!o.material.vertexColors && g.attributes.color) g.deleteAttribute('color');
-    g.clearGroups();
-    const key = o.material.uuid + (o.castShadow ? 'c' : 'n');
-    if (!buckets.has(key)) buckets.set(key, { m: o.material, cast: o.castShadow, list: [], src: [] });
+    const bm = bakeGeo(g, o.material);
+    const key = bm.uuid + (o.castShadow ? 'c' : 'n');
+    if (!buckets.has(key)) buckets.set(key, { m: bm, cast: o.castShadow, list: [], src: [] });
     const b = buckets.get(key);
     b.list.push(g);
     b.src.push(o);
@@ -65,6 +113,7 @@ export function compact(group) {
     if (b.src.length < 2) continue;
     const merged = mergeGeometries(b.list, false);
     if (!merged) continue;
+    merged.userData.merged = true;
     for (const o of b.src) group.remove(o);
     const m = new THREE.Mesh(merged, b.m);
     m.castShadow = b.cast;
@@ -786,7 +835,7 @@ function buildCabine(level) {
   return g;
 }
 
-function stripeCylinder(r, h, colors, n = 6) {
+export function stripeCylinder(r, h, colors, n = 6) {
   const g = new THREE.Group();
   for (let i = 0; i < n; i++) mesh(cyl(r, r, h / n, 14), mat(colors[i % colors.length], { r: 0.9 }), 0, -h / 2 + (h / n) * (i + 0.5), 0, g);
   return g;
@@ -1166,6 +1215,12 @@ export function buildBuilding(type, level = 1, uniform = null) {
     flores: () => P.premiumFlowerBed(),
     banco: () => P.premiumBench(),
     poste: () => P.premiumStreetLamp(),
+    lavajato: () => P.premiumLavajato(level),
+    loja: () => P.premiumLoja(level),
+    posto: () => P.premiumPosto(level),
+    restauracao: () => P.premiumRestauracao(level),
+    showroom: () => P.premiumShowroom(),
+    guincho: () => P.premiumGuincho(level),
   }[type];
   if (prem) g = prem();
   else switch (type) {
@@ -1187,7 +1242,12 @@ export function buildBuilding(type, level = 1, uniform = null) {
     posto: ['#e8473c', '#ffffff', 2.3, 0.3, -Math.PI / 2],
     restauracao: ['#ff8a2a', '#22252e', 1.5, 1.4, -Math.PI / 2],
   }[type];
-  if (prem) {
+  if (VISUAL.premium && !prem && !['escritorio', 'elevador', 'cabine'].includes(type)) {
+    // Decorações antigas no visual novo: sombra suave no chão (as cores viram material único no compact).
+    const sz = { placa: [4, 2], foodtruck: [4.4, 2.4], outdoor: [4.4, 2.2], chafariz: [4.2, 4.2], trofeu: [3.6, 3.6], estatua: [3.8, 3.8] }[type] || [1.8, 1.8];
+    const sh = softShadow(sz[0], sz[1], 0.4); sh.position.y = 0.24; g.add(sh);
+  }
+  if (VISUAL.premium) {
     compact(g);
     for (const c of g.children) if (c.isGroup && !Object.values(g.userData).includes(c)) compact(c);
   }

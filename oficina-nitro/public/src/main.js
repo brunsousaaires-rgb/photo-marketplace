@@ -234,7 +234,11 @@ function updateTip() {
   if (t === tipText) return;
   tipText = t;
   $('#tip').hidden = !t;
-  if (t) { $('#tip').textContent = t; $('#tip').style.animation = 'none'; void $('#tip').offsetWidth; $('#tip').style.animation = ''; }
+  if (t) {
+    $('#tip').innerHTML = `<span class="tipico">${icon('equipe')}</span><span class="tiptext"></span>`;
+    $('#tip').lastChild.textContent = t;
+    $('#tip').style.animation = 'none'; void $('#tip').offsetWidth; $('#tip').style.animation = '';
+  }
 }
 
 // ---------- balões presos no 3D ----------
@@ -479,10 +483,25 @@ function unlockVisual(u) {
   return icon('corrida');
 }
 
+// Confete caindo pela tela (subir de nível, entrega perfeita).
+function confettiBurst(n = 60) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cols = ['#ffd23d', '#ff4fa3', '#2f7bea', '#46c35a', '#ff8a2a', '#8a5cf0', '#33d0e0'];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('i');
+    c.className = 'confetti';
+    const d = 1.6 + Math.random() * 1.6;
+    c.style.cssText = `left:${Math.random() * 100}vw;background:${cols[i % cols.length]};--d:${d}s;--dx:${(Math.random() - 0.5) * 240}px;--r:${(Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 720)}deg;animation-delay:${Math.random() * 0.5}s;width:${7 + Math.random() * 6}px;height:${10 + Math.random() * 8}px`;
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), (d + 0.6) * 1000);
+  }
+}
+
 function handleLevels(levels) {
   for (const lv of levels || []) {
     setTimeout(() => {
       sfx.play('level');
+      confettiBurst(70);
       const esc = state.buildings.find((b) => b.type === 'escritorio');
       if (esc) world.confetti(world.buildViews.get(esc.id).g.position, 60);
     }, 300);
@@ -490,7 +509,7 @@ function handleLevels(levels) {
       const un = L.unlocksAt(lv);
       box.innerHTML = head('SUBIU DE NÍVEL!', 'gold') + `
         <div class="mbody center">
-          <div class="hero">${icon('trofeu')}</div>
+          <div class="hero raybg">${icon('trofeu')}</div>
           <p class="bigtext ol">Nível ${lv}</p>
           <div class="reward" style="justify-content:center;font-size:18px">Prêmio: ${coin(40 * lv)}</div>
           ${un.length ? `<b>Novidades liberadas:</b><div class="unlocks">${un.map((u) => `<div class="unl">${unlockVisual(u)} ${u.name}</div>`).join('')}</div>` : ''}
@@ -695,7 +714,7 @@ $('#deliverBtn').addEventListener('click', () => {
   const pos = world.buildViews.get(bid).g.position.clone();
   closeCustom();
   afterChange();
-  if (r.stars === 3) { world.confetti(pos, 50); sfx.play('stars'); } else sfx.play('pop');
+  if (r.stars === 3) { world.confetti(pos, 50); sfx.play('stars'); setTimeout(() => confettiBurst(40), 250); } else sfx.play('pop');
   const msg = r.stars === 3 ? (r.extras ? 'Ficou incrível! Cliente apaixonado 😍' : 'Exatamente como pedi! 😄') : r.stars === 2 ? 'Quase… mas faltou uma coisa 😐' : 'Não era bem isso que eu pedi 😕';
   openModal((box) => {
     box.dataset.sticky = '1';

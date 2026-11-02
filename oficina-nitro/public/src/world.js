@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TILE, GRID_H, MAX_W, BUILDINGS, CAR_TYPES, PARTS, LAND, CHARACTERS } from './data.js';
 import {
   buildCar, buildBuilding, buildTree, buildHouse, disposeCar, buildPerson, buildScaffold, buildSaleSign, buildTrack, makeTrackPath,
-  animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH,
+  animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH, compact,
 } from './models.js';
 export { LOT_D_EXPORT as LOT_D };
 import { laneTiles, canPlace, QUEUE_SLOTS, parcelsOf, landStatus, lotBounds } from './logic.js';
@@ -181,7 +181,12 @@ export class World {
     if (P) {
       // Meio-fio de concreto com quina arredondada nas duas calçadas, e bueiros e tampas de bueiro.
       const curb = PM.concrete([60, 1]);
-      for (const z of [LOT_D + 1.6, LOT_D + 10.2]) { const c = mesh(rbox(200, 0.3, 0.26, 0.08), curb, MAX_LOT_W / 2, 0.06, z, S); c.castShadow = false; }
+      // Meio-fio com vão onde as ruas laterais cruzam a avenida.
+      const cuts = [ROAD.XMIN, ...JUNCTIONS.flatMap((j) => [j - 3.62, j + 3.62]), ROAD.XMAX];
+      for (const z of [LOT_D + 1.6, LOT_D + 10.2]) for (let i = 0; i < cuts.length; i += 2) {
+        const a = cuts[i], b = cuts[i + 1];
+        const c = mesh(rbox(b - a, 0.3, 0.26, 0.08), curb, (a + b) / 2, 0.06, z, S); c.castShadow = false;
+      }
       const drainM = new THREE.MeshStandardMaterial({ map: TEX.grate(), roughness: 0.6, metalness: 0.4 });
       const holeM = new THREE.MeshStandardMaterial({ map: TEX.manhole(), roughness: 0.7, metalness: 0.3, transparent: true });
       for (let x = -60; x < 120; x += 14) {
@@ -208,9 +213,11 @@ export class World {
 
   setLot(state) {
     const G = this.lotGroup;
+    G.traverse((o) => { if (o.isMesh && o.geometry.userData.merged) o.geometry.dispose(); });
     G.clear();
     this.buildLotInto(G, parcelsOf(state.land));
     this.placeSaleAndTrack(state, G);
+    compact(G); // cerca viva, estacas e cordas: uma chamada de desenho por material
   }
 
   // Desenha o lote: um piso por terreno e a cerca viva só na borda de fora (menos a frente, que é a avenida).

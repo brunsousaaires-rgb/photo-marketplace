@@ -3,7 +3,12 @@
 // detalhados, vegetação volumétrica variada e mobiliário urbano.
 // Tudo aqui é chamado sob demanda (nada roda ao carregar o módulo), por isso pode importar de models.js.
 import * as THREE from 'three';
-import { mesh, mat, rbox, box, cyl, sph, glow, sign, lamp, levelStars, hazard, TIER, softShadow, shine, torus, WHEELS, buildWheel } from './models.js';
+import { mesh, mat, rbox, box, cyl, sph, glow, sign, lamp, levelStars, hazard, TIER, softShadow, shine, torus, WHEELS, buildWheel, NIGHT, stripeCylinder, buildTowTruck, buildCone, SHOWROOM_SLOTS } from './models.js';
+
+const NIGHT_HOOK = (m) => NIGHT.add(m);
+// Texturas de água que deslizam devagar (chamado a cada quadro pelo mundo).
+const WATER = [];
+export function waterTick(t) { for (const tx of WATER) { tx.offset.x = Math.sin(t * 0.05) * 0.08 + t * 0.006; tx.offset.y = t * 0.011; } }
 
 // ---------------- texturas feitas em canvas ----------------
 const TC = new Map();
@@ -121,6 +126,60 @@ export const TEX = {
     g.fillStyle = '#3a3e47'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#1b1d22'; for (let x = 6; x < w - 4; x += 8) g.fillRect(x, 6, 4, h - 12);
   }, [1, 1]),
+  // Telha neutra (clara): a cor vem do material, assim o mesmo desenho serve para telhado vermelho, azul, roxo...
+  roofTile: (rep) => tex('roofTile', 128, 128, (g, w, h, r) => {
+    g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < 8; y++) for (let x = -1; x < 9; x++) {
+      const ox = (y % 2) * 8;
+      const grd = g.createLinearGradient(0, y * 16, 0, y * 16 + 16);
+      const c = ['#ffffff', '#f2f2f2', '#e6e6e6'][Math.floor(r() * 3)];
+      grd.addColorStop(0, c); grd.addColorStop(0.72, c); grd.addColorStop(1, '#8c8c8c');
+      g.fillStyle = grd;
+      g.beginPath(); g.ellipse(x * 16 + ox + 8, y * 16 + 6, 8, 10, 0, 0, Math.PI); g.fill();
+    }
+  }, rep),
+  // Vitrine de loja vista de fora: prateleiras com produtos coloridos e um reflexo diagonal no vidro.
+  shelves: () => tex('shelves', 256, 128, (g, w, h, r) => {
+    const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#fff3d6'); bg.addColorStop(1, '#ffd99a');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    const cols = ['#e8473c', '#2f7bea', '#46c35a', '#ffc93c', '#ff6fb5', '#8a5cf0', '#ff8a2a', '#ffffff'];
+    for (const y of [40, 82, 124]) {
+      g.fillStyle = '#b07a4a'; g.fillRect(0, y - 4, w, 6);
+      for (let x = 4; x < w - 10;) {
+        const pw = 8 + r() * 14, ph = 14 + r() * 18;
+        g.fillStyle = cols[Math.floor(r() * cols.length)];
+        g.fillRect(x, y - 4 - ph, pw, ph);
+        g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x + 2, y - 4 - ph + 2, 3, ph - 4);
+        x += pw + 3 + r() * 4;
+      }
+    }
+    g.fillStyle = 'rgba(255,255,255,.28)';
+    g.beginPath(); g.moveTo(60, 0); g.lineTo(110, 0); g.lineTo(50, h); g.lineTo(0, h); g.fill();
+    g.beginPath(); g.moveTo(150, 0); g.lineTo(166, 0); g.lineTo(106, h); g.lineTo(90, h); g.fill();
+  }),
+  // Janela de casa: cortina, vidro azulado e reflexo.
+  pane: () => tex('pane', 64, 64, (g, w, h) => {
+    const bg = g.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#cdeeff'); bg.addColorStop(1, '#6fb2dd');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(0, 0, 12, h); g.fillRect(w - 12, 0, 12, h);
+    g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.moveTo(26, 0); g.lineTo(40, 0); g.lineTo(18, h); g.lineTo(4, h); g.fill();
+  }),
+  // Água: brilhos e ondinhas claras (a textura desliza devagar).
+  water: (rep) => tex('water', 256, 256, (g, w, h, r) => {
+    g.fillStyle = '#3a95db'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++) blob(g, r() * w, r() * h, 30 + r() * 50, r() < 0.5 ? 'rgba(90,180,240,.35)' : 'rgba(30,110,190,.3)');
+    g.strokeStyle = 'rgba(220,245,255,.55)'; g.lineWidth = 2; g.lineCap = 'round';
+    for (let i = 0; i < 70; i++) { const x = r() * w, y = r() * h, l = 6 + r() * 16; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y - 3, x + l, y); g.stroke(); }
+  }, rep),
+  stone: (rep) => tex('stone', 128, 128, (g, w, h, r) => {
+    g.fillStyle = '#c9c2b2'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < 4; y++) for (let x = -1; x < 4; x++) {
+      g.fillStyle = ['#ddd6c6', '#d2cab8', '#e6e0d2', '#cbc3b0'][Math.floor(r() * 4)];
+      const ox = (y % 2) * 20;
+      g.beginPath(); g.roundRect(x * 40 + ox + 2, y * 32 + 2, 36, 28, 6); g.fill();
+    }
+    speckle(g, w, h, 500, ['rgba(0,0,0,.07)', 'rgba(255,255,255,.2)'], r, 1, 2);
+  }, rep),
   manhole: () => tex('manhole', 64, 64, (g, w, h) => {
     g.fillStyle = '#4b505a'; g.beginPath(); g.arc(32, 32, 31, 0, 7); g.fill();
     g.strokeStyle = '#3a3e47'; g.lineWidth = 3; for (let rr = 8; rr < 30; rr += 6) { g.beginPath(); g.arc(32, 32, rr, 0, 7); g.stroke(); }
@@ -132,7 +191,7 @@ export const TEX = {
 const MC = new Map();
 function std(key, o, env = 0.3) {
   let m = MC.get(key);
-  if (!m) { m = new THREE.MeshStandardMaterial(o); m.envMapIntensity = env; MC.set(key, m); }
+  if (!m) { m = new THREE.MeshStandardMaterial(o); m.envMapIntensity = env; m.userData.keep = true; MC.set(key, m); }
   return m;
 }
 export const PM = {
@@ -145,6 +204,25 @@ export const PM = {
   brick: (rep = [1, 1]) => std('brick' + rep, { map: TEX.brick(rep), roughness: 0.85 }, 0.15),
   corrugated: (color = '#ffffff', rep = [1, 1]) => std('corr' + color + rep, { map: TEX.corrugated(rep), color, roughness: 0.4, metalness: 0.5 }, 0.8),
   hedge: (rep = [1, 1]) => std('hedge' + rep, { map: TEX.hedge(rep), roughness: 0.95 }, 0.1),
+  roofTint: (color, rep = [1, 1]) => std('rooft' + color + rep, { map: TEX.roofTile(rep), color, roughness: 0.72 }, 0.2),
+  stone: (rep = [1, 1]) => std('stone' + rep, { map: TEX.stone(rep), roughness: 0.85 }, 0.15),
+  shelves: () => {
+    let m = MC.get('shelves');
+    if (!m) { m = new THREE.MeshStandardMaterial({ map: TEX.shelves(), roughness: 0.15, metalness: 0.1, emissive: '#ffffff', emissiveMap: TEX.shelves(), emissiveIntensity: 0.12 }); m.envMapIntensity = 0.6; m.userData.night = { dayE: new THREE.Color('#ffffff'), nightE: new THREE.Color('#ffe2a8'), dayI: 0.12, nightI: 0.9 }; m.userData.keep = true; MC.set('shelves', m); NIGHT_HOOK(m); }
+    return m;
+  },
+  pane: () => {
+    let m = MC.get('pane');
+    if (!m) { m = new THREE.MeshStandardMaterial({ map: TEX.pane(), roughness: 0.1, metalness: 0.2, emissive: '#000000', emissiveIntensity: 0.0 }); m.envMapIntensity = 0.9; m.userData.night = { dayE: new THREE.Color('#000000'), nightE: new THREE.Color('#ffc870'), dayI: 0, nightI: 1.2 }; m.userData.keep = true; MC.set('pane', m); NIGHT_HOOK(m); }
+    return m;
+  },
+  // Água que desliza (a textura é a mesma; quem chama anima o offset em waterTick).
+  water: (rep = [1, 1]) => {
+    const k = 'water' + rep;
+    let m = MC.get(k);
+    if (!m) { m = new THREE.MeshStandardMaterial({ map: TEX.water(rep), color: '#ffffff', roughness: 0.08, metalness: 0.25 }); m.envMapIntensity = 1.3; m.userData.keep = true; MC.set(k, m); WATER.push(m.map); }
+    return m;
+  },
   metal: (color = '#c6ccd6') => std('metal' + color, { color, roughness: 0.3, metalness: 0.85 }, 1.1),
   chrome: () => std('chrome', { color: '#eef2f8', roughness: 0.1, metalness: 1 }, 1.5),
   plastic: (color) => std('plastic' + color, { color, roughness: 0.48, metalness: 0 }, 0.35),
@@ -152,7 +230,7 @@ export const PM = {
   tread: () => std('tread', { map: TEX.tread(), roughness: 0.95 }, 0.1),
   glass: () => {
     let m = MC.get('glass');
-    if (!m) { m = new THREE.MeshStandardMaterial({ color: '#203a5c', roughness: 0.06, metalness: 0.55, transparent: true, opacity: 0.86 }); m.envMapIntensity = 1.6; MC.set('glass', m); }
+    if (!m) { m = new THREE.MeshStandardMaterial({ color: '#203a5c', roughness: 0.06, metalness: 0.55, transparent: true, opacity: 0.86 }); m.envMapIntensity = 1.6; m.userData.keep = true; MC.set('glass', m); }
     return m;
   },
 };
@@ -613,10 +691,10 @@ export function premiumStreetLamp() {
 // ---------------- vegetação volumétrica ----------------
 // Copas: esferas geodésicas deformadas, com cor mais escura embaixo (sombra de ambiente nos vértices).
 const CANOPY = new Map();
-function canopyGeo(v) {
-  let gGeo = CANOPY.get(v);
+function canopyGeo(v, detail = 2) {
+  let gGeo = CANOPY.get(v + '|' + detail);
   if (gGeo) return gGeo;
-  gGeo = new THREE.IcosahedronGeometry(1, 2);
+  gGeo = new THREE.IcosahedronGeometry(1, detail);
   const r = rng(1000 + v * 37);
   const pos = gGeo.attributes.position;
   const cache = new Map();
@@ -630,13 +708,13 @@ function canopyGeo(v) {
   const col = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); const k = 0.62 + 0.45 * Math.min(1, Math.max(0, (y + 1) / 2)); col.set([k, k, k], i * 3); }
   gGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  CANOPY.set(v, gGeo);
+  CANOPY.set(v + '|' + detail, gGeo);
   return gGeo;
 }
 const leaf = (hex) => std('leaf' + hex, { color: hex, roughness: 0.85, vertexColors: true }, 0.15);
 const bark = () => std('bark', { color: '#7a5034', roughness: 0.9 }, 0.1);
 
-export function premiumTree(seed = 1, scale = 1) {
+export function premiumTree(seed = 1, scale = 1, detail = 2) {
   const r = rng(seed * 7919 + 13);
   const g = new THREE.Group();
   const kind = r();
@@ -671,7 +749,7 @@ export function premiumTree(seed = 1, scale = 1) {
       const d = i === 0 ? 0 : 0.45 + r() * 0.25;
       const s = (i === 0 ? 0.95 : 0.65 + r() * 0.25);
       const blobM = ipe && i % 2 === 0 ? leaf(ipe) : leaf(i % 2 ? base : greens[(greens.indexOf(base) + 1) % greens.length]);
-      const m = mesh(canopyGeo(Math.floor(r() * 6)), blobM, Math.cos(a) * d, h * 1.15 + 0.55 + (i === 0 ? 0.35 : r() * 0.4), Math.sin(a) * d, crown);
+      const m = mesh(canopyGeo(Math.floor(r() * 6), detail), blobM, Math.cos(a) * d, h * 1.15 + 0.55 + (i === 0 ? 0.35 : r() * 0.4), Math.sin(a) * d, crown);
       m.scale.set(s * 1.05, s * 0.9, s);
       m.rotation.y = r() * 6;
     }
@@ -686,7 +764,7 @@ export function premiumBush(seed = 1, scale = 1) {
   const g = new THREE.Group();
   const base = ['#4caf46', '#3f9d3c', '#5cbf4f'][Math.floor(r() * 3)];
   for (let i = 0; i < 3; i++) {
-    const m = mesh(canopyGeo(Math.floor(r() * 6)), leaf(base), (r() - 0.5) * 0.7, 0.32, (r() - 0.5) * 0.7, g);
+    const m = mesh(canopyGeo(Math.floor(r() * 6), 1), leaf(base), (r() - 0.5) * 0.7, 0.32, (r() - 0.5) * 0.7, g);
     m.scale.set(0.5 + r() * 0.2, 0.42, 0.5 + r() * 0.2);
   }
   if (r() < 0.6) {
@@ -711,12 +789,12 @@ export function scatterDetails(rects, avoid, count = 900, seed = 5) {
     if (avoid(x, z)) continue;
     pts.push([x, z, r()]);
   }
-  const tuftGeo = new THREE.ConeGeometry(0.07, 0.38, 3);
+  const tuftGeo = new THREE.ConeGeometry(0.07, 0.38, 3, 1, true);
   tuftGeo.translate(0, 0.19, 0);
   const tuftM = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
   tuftM.envMapIntensity = 0.1;
   const tufts = new THREE.InstancedMesh(tuftGeo, tuftM, pts.length * 3);
-  const flowerGeo = new THREE.SphereGeometry(0.07, 6, 5);
+  const flowerGeo = new THREE.OctahedronGeometry(0.075, 0);
   const flowerM = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 });
   flowerM.envMapIntensity = 0.1;
   const nFl = Math.floor(pts.length * 0.35);
@@ -789,5 +867,259 @@ export function streetPlanterTree(seed) {
   const t = premiumTree(seed, 0.85);
   t.position.y = 0.3;
   g.add(t);
+  return g;
+}
+
+// ---------------- prédios de serviço (visual novo) ----------------
+const ns = (m) => { m.castShadow = false; return m; };
+const wetM = () => {
+  let m = MC.get('wet');
+  if (!m) { m = new THREE.MeshStandardMaterial({ color: '#9fdcff', roughness: 0.02, metalness: 0.4, transparent: true, opacity: 0.5, depthWrite: false }); m.envMapIntensity = 1.6; m.userData.keep = true; MC.set('wet', m); }
+  return m;
+};
+const bubbleM = () => {
+  let m = MC.get('bubble');
+  if (!m) { m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.7 }); m.envMapIntensity = 1.4; m.userData.keep = true; MC.set('bubble', m); }
+  return m;
+};
+function signBoard(g, text, w, h, x, y, z, bg, stroke, back = '#1d2b4f', opts = {}) {
+  mesh(rbox(w + 0.14, h + 0.14, 0.12, 0.05), PM.plastic(back), x, y, z - 0.07, g);
+  const s = sign(text, w, h, { bg, stroke, night: true, ...opts });
+  s.position.set(x, y, z);
+  g.add(s);
+  return s;
+}
+
+export function premiumLavajato(level) {
+  const g = new THREE.Group();
+  g.add(slabP(2, 3));
+  groundAO(g, 3.9, 5.6);
+  // Piso com grelhas de escoamento e poças d'água.
+  const grate = std('grateM', { map: TEX.grate(), roughness: 0.6, metalness: 0.4 }, 0.3);
+  for (const z of [-1.6, 0, 1.6]) { const d = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.3), grate); d.rotation.x = -Math.PI / 2; d.position.set(0, 0.226, z); g.add(d); }
+  for (const [x, z, s] of [[0.7, 1.9, 1.1], [-0.9, -1.0, 0.7], [0.4, -0.4, 0.5]]) { const p = ns(mesh(cyl(s, s, 0.01, 20), wetM(), x, 0.232, z, g)); p.scale.set(1, 1, 0.6); }
+  // Pórtico azul com colunas, faixa de LED, bicos de água e letreiro.
+  const blue = PM.plastic('#2f7bea');
+  for (const sx of [-1, 1]) {
+    mesh(rbox(0.42, 3.1, 0.7, 0.1), blue, sx * 1.85, 1.75, 0, g);
+    mesh(rbox(0.5, 0.12, 0.78, 0.03), PM.chrome(), sx * 1.85, 0.28, 0, g);
+    mesh(box(0.06, 2.4, 0.08), glow('#7ff0ff', '#33d0e0', '#7ff0ff', 1.0, 2.4), sx * 1.62, 1.7, 0.3, g).castShadow = false;
+    for (let i = 0; i < 4; i++) ns(mesh(cyl(0.05, 0.07, 0.12, 8), PM.metal('#c6ccd6'), sx * 1.6, 0.8 + i * 0.5, -0.25, g)).rotation.z = Math.PI / 2;
+  }
+  mesh(rbox(4.2, 0.65, 0.8, 0.12), blue, 0, 3.3, 0, g);
+  mesh(rbox(4.24, 0.1, 0.84, 0.03), PM.plastic('#1f5bb5'), 0, 2.98, 0, g);
+  signBoard(g, 'LAVA-JATO', 3.0, 0.6, 0, 3.3, 0.44, '#33d0e0', '#0f5c7a', '#0f5c7a', { size: 70 });
+  levelStars(g, level, 3.8, 0.2);
+  const brushes = [];
+  for (const sx of [-1, 1]) {
+    const b = stripeCylinder(0.42, 2.0, ['#ffc93c', '#2f7bea']);
+    b.position.set(sx * 1.2, 1.3, 0); g.add(b); brushes.push(b);
+    mesh(cyl(0.05, 0.05, 0.5, 6), PM.metal('#c6ccd6'), sx * 1.2, 2.5, 0, g);
+  }
+  const top = stripeCylinder(0.32, 2.2, ['#ffc93c', '#2f7bea'], 7);
+  top.rotation.z = Math.PI / 2; top.position.set(0, 2.62, 0); g.add(top); brushes.push(top);
+  g.userData.brushes = brushes;
+  // Espuma (bolhas) nas escovas.
+  const r = rng(41);
+  for (let i = 0; i < 14; i++) ns(mesh(sph(0.08 + r() * 0.1, 8, 6), bubbleM(), (r() - 0.5) * 3, 0.3 + r() * 0.4, (r() - 0.5) * 1.6, g));
+  // Lavadora de pressão, carretel de mangueira, baldes e prateleira de produtos.
+  mesh(rbox(0.6, 0.55, 0.45, 0.06), PM.plastic('#e8473c'), -1.4, 0.55, -2.35, g);
+  for (const sx of [-0.22, 0.22]) ns(mesh(cyl(0.12, 0.12, 0.08, 12), PM.rubber(), -1.4 + sx, 0.33, -2.12, g)).rotation.x = Math.PI / 2;
+  mesh(cyl(0.03, 0.03, 0.6, 6), PM.metal('#3a3d48'), -1.4, 1.05, -2.5, g);
+  const reel = mesh(torus(0.3, 0.08, 8, 18), PM.plastic('#46c35a'), -0.55, 0.85, -2.6, g); reel.rotation.y = Math.PI / 2;
+  mesh(cyl(0.1, 0.1, 0.25, 10), PM.metal('#c6ccd6'), -0.55, 0.85, -2.6, g).rotation.z = Math.PI / 2;
+  for (const [x, c] of [[1.0, '#ffc93c'], [1.45, '#2f7bea']]) { mesh(cyl(0.2, 0.16, 0.35, 14), PM.plastic(c), x, 0.4, -2.3, g); ns(mesh(cyl(0.17, 0.17, 0.02, 14), bubbleM(), x, 0.58, -2.3, g)); }
+  mesh(rbox(1.6, 0.06, 0.32, 0.02), PM.wood(), 0.9, 1.25, -2.62, g);
+  for (const sx of [0.25, 1.55]) mesh(box(0.05, 1.0, 0.3), PM.metal('#9aa3b2'), sx, 0.75, -2.62, g);
+  ['#ff4fa3', '#33d0e0', '#ffc93c', '#8a5cf0', '#46c35a'].forEach((c, i) => mesh(cyl(0.08, 0.1, 0.3, 10), PM.plastic(c), 0.35 + i * 0.28, 1.43, -2.62, g));
+  return g;
+}
+
+export function premiumLoja(level) {
+  const g = new THREE.Group();
+  g.add(slabP(2, 2));
+  groundAO(g, 3.9, 3.9);
+  const wall = PM.plaster('#fff4dc', [2, 1]);
+  mesh(rbox(3.5, 0.4, 2.7, 0.04), PM.brick([3, 0.5]), 0, 0.42, -0.4, g);
+  mesh(rbox(3.4, 2.1, 2.6, 0.08), wall, 0, 1.3, -0.4, g);
+  mesh(rbox(3.6, 0.14, 2.8, 0.04), mat('#ffffff', { r: 0.55 }), 0, 2.38, -0.4, g);
+  // Platibanda colorida (cor do nível) com laje de concreto.
+  const tier = PM.plastic(TIER[level - 1]);
+  ns(mesh(box(3.4, 0.06, 2.6), PM.concrete([1, 1]), 0, 2.48, -0.4, g));
+  for (const s of [-1, 1]) { mesh(box(3.6, 0.38, 0.16), tier, 0, 2.62, -0.4 + s * 1.32, g); mesh(box(0.16, 0.38, 2.5), tier, s * 1.72, 2.62, -0.4, g); }
+  mesh(rbox(0.8, 0.45, 0.6, 0.05), PM.metal('#dfe4ec'), -0.9, 2.72, -1.1, g);
+  // Vitrine com prateleiras, porta de vidro, toldo de babado.
+  mesh(rbox(3.1, 1.6, 0.1, 0.03), PM.metal('#3a3d48'), 0, 1.25, 0.93, g);
+  ns(mesh(box(1.75, 1.3, 0.04), PM.shelves(), -0.55, 1.3, 0.99, g));
+  ns(mesh(box(0.05, 1.3, 0.05), PM.metal('#c6ccd6'), -0.55, 1.3, 1.02, g));
+  ns(mesh(box(0.85, 1.42, 0.04), PM.shelves(), 0.95, 1.18, 0.99, g));
+  ns(mesh(box(0.05, 0.5, 0.05), PM.chrome(), 0.65, 1.15, 1.04, g));
+  const aw = mesh(box(3.3, 0.07, 0.9), std('awn-r', { map: stripesTex('#e8473c', '#ffffff'), roughness: 0.75 }), 0, 2.05, 1.3, g);
+  aw.rotation.x = 0.38;
+  for (let i = 0; i < 10; i++) ns(mesh(cyl(0.16, 0.16, 0.06, 10, 1), i % 2 ? mat('#ffffff', { r: 0.7 }) : PM.plastic('#e8473c'), -1.48 + i * 0.33, 1.83, 1.72, g)).rotation.x = Math.PI / 2;
+  signBoard(g, 'PEÇAS', 2.2, 0.6, 0, 3.15, 0.55, '#ffc93c', '#8a5a00', '#8a5a00', { fg: '#ffffff' });
+  levelStars(g, level, 3.62, 0.5);
+  // Expositor de pneus e pirâmide de latas de óleo na calçada.
+  mesh(rbox(0.12, 1.2, 0.12, 0.03), PM.metal('#3a3d48'), -1.6, 0.8, 1.35, g);
+  for (let i = 0; i < 3; i++) { const t = mesh(torus(0.26, 0.11, 10, 18), PM.rubber(), -1.6, 0.55 + i * 0.32, 1.35, g); t.rotation.y = 0.2; mesh(cyl(0.16, 0.16, 0.05, 12), PM.metal('#c6ccd6'), -1.6, 0.55 + i * 0.32, 1.35, g).rotation.x = Math.PI / 2; }
+  const can = PM.plastic('#ffc93c');
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 3 - row; i++) mesh(cyl(0.1, 0.1, 0.22, 10), can, 1.35 + (i - (2 - row) / 2) * 0.22, 0.35 + row * 0.22, 1.35, g);
+  return g;
+}
+
+export function premiumPosto(level) {
+  const g = new THREE.Group();
+  g.add(slabP(3, 3));
+  groundAO(g, 5.8, 5.8);
+  const white = mat('#ffffff', { r: 0.5 });
+  const red = PM.plastic('#e8473c');
+  // Ilha das bombas de concreto com protetores amarelos.
+  mesh(rbox(5.2, 0.25, 1.0, 0.08), PM.concrete([3, 1]), 0, 0.33, -1.2, g);
+  for (const sx of [-2.4, 2.4]) { mesh(cyl(0.08, 0.08, 0.8, 10), PM.plastic('#ffc93c'), sx, 0.75, -0.75, g); ns(mesh(cyl(0.085, 0.085, 0.12, 10), mat('#22252e'), sx, 0.95, -0.75, g)); }
+  for (const sx of [-1.4, 1.4]) {
+    const pump = new THREE.Group();
+    mesh(rbox(0.8, 1.55, 0.58, 0.08), PM.plastic('#46c35a'), 0, 1.22, 0, pump);
+    mesh(rbox(0.82, 0.3, 0.6, 0.06), white, 0, 2.05, 0, pump);
+    mesh(rbox(0.6, 0.36, 0.05, 0.03), glow('#1d2b4f', '#3aff9a', '#3aff9a', 0.6, 1.6), 0, 1.6, 0.3, pump);
+    mesh(box(0.5, 0.08, 0.04), PM.chrome(), 0, 1.08, 0.3, pump);
+    for (const s of [-1, 1]) {
+      mesh(rbox(0.12, 0.3, 0.12, 0.03), PM.metal('#22252e'), s * 0.46, 1.25, 0.12, pump);
+      ns(mesh(cyl(0.025, 0.025, 0.9, 6), mat('#22252e'), s * 0.46, 0.85, 0.2, pump)).rotation.x = 0.35;
+    }
+    const brand = sign('NITRO', 0.6, 0.18, { w: 256, h: 80, bg: '#e8473c', stroke: '#7a1a12', size: 52 });
+    brand.position.set(0, 2.05, 0.31); pump.add(brand);
+    pump.position.set(sx, 0, -1.2);
+    g.add(pump);
+  }
+  // Colunas revestidas e cobertura com faixa vermelha, letreiro e luzes embaixo.
+  for (const sx of [-2.4, 2.4]) {
+    mesh(rbox(0.36, 3.3, 0.36, 0.06), PM.stone([1, 3]), sx, 1.95, -1.2, g);
+    mesh(rbox(0.44, 0.2, 0.44, 0.04), PM.metal('#c6ccd6'), sx, 0.32, -1.2, g);
+  }
+  mesh(rbox(5.9, 0.42, 3.1, 0.1), white, 0, 3.78, -1.6, g);
+  mesh(rbox(6.0, 0.36, 0.12, 0.05), red, 0, 3.78, -0.04, g);
+  for (const sx of [-1, 1]) mesh(rbox(0.12, 0.36, 3.2, 0.05), red, sx * 2.98, 3.78, -1.6, g);
+  const s = sign('POSTO NITRO', 3.6, 0.42, { w: 768, h: 96, bg: '#e8473c', stroke: '#7a1a12', size: 66, night: true });
+  s.position.set(0, 3.78, 0.03); g.add(s);
+  for (const sx of [-1.8, -0.6, 0.6, 1.8]) ns(mesh(box(0.8, 0.04, 0.36), glow('#ffffff', '#ffffff', '#fff6d8', 0.4, 2.4), sx, 3.55, -1.4, g));
+  lamp(g, 0, 3.2, -0.5, '#fff1d0', 10, 14);
+  // Calibrador de pneus e lixeira com rodo.
+  mesh(rbox(0.4, 1.2, 0.3, 0.05), PM.plastic('#2f7bea'), -2.6, 0.82, 1.9, g);
+  ns(mesh(cyl(0.12, 0.12, 0.04, 16), mat('#ffffff', { r: 0.4 }), -2.6, 1.15, 2.06, g)).rotation.x = Math.PI / 2;
+  const hose = mesh(torus(0.18, 0.025, 6, 16), mat('#22252e'), -2.6, 0.7, 2.08, g); hose.rotation.y = 0;
+  mesh(cyl(0.16, 0.14, 0.6, 12), PM.plastic('#46c35a'), -2.0, 0.52, 2.2, g);
+  // Totem de preços.
+  mesh(rbox(0.3, 3.6, 0.3, 0.05), PM.metal('#5a6070'), 2.55, 1.9, 2.3, g);
+  mesh(rbox(1.5, 1.5, 0.18, 0.05), PM.plastic('#0c1428'), 2.55, 3.4, 2.32, g);
+  const tot = sign('GASOLINA', 1.3, 1.3, { w: 256, h: 256, bg: '#1d2b4f', fg: '#ffd23d', stroke: '#0c1428', size: 46, sub: 'R$ 5,89', night: true });
+  tot.position.set(2.55, 3.4, 2.42); g.add(tot);
+  mesh(rbox(1.5, 0.3, 0.2, 0.05), red, 2.55, 4.3, 2.32, g);
+  levelStars(g, level, 4.2, -0.05);
+  return g;
+}
+
+export function premiumRestauracao(level) {
+  const g = new THREE.Group();
+  g.add(slabP(2, 3));
+  groundAO(g, 3.9, 5.6);
+  // Galpão de tijolo com telhado de zinco ondulado.
+  mesh(rbox(3.95, 2.9, 0.35, 0.05), PM.brick([4, 3]), 0, 1.65, -2.75, g);
+  for (const sx of [-1, 1]) {
+    mesh(rbox(0.32, 1.0, 5.2, 0.05), PM.brick([5, 1]), sx * 1.85, 0.72, -0.2, g);
+    mesh(rbox(0.38, 0.08, 5.26, 0.03), PM.concrete(), sx * 1.85, 1.24, -0.2, g);
+    mesh(rbox(0.25, 2.9, 0.25, 0.05), PM.metal('#5a6070'), sx * 1.85, 1.65, -0.9, g);
+  }
+  const roof = mesh(box(4.3, 0.08, 2.3), PM.corrugated('#b8c2cf', [6, 1]), 0, 3.12, -1.85, g);
+  roof.rotation.x = -0.08;
+  mesh(box(4.3, 0.12, 0.12), PM.metal('#5a6070'), 0, 3.02, -0.72, g);
+  signBoard(g, 'RESTAURAÇÃO', 3.2, 0.55, 0, 2.5, -2.52, '#ff8a2a', '#7a2e00', '#7a2e00', { w: 768, h: 128, size: 70 });
+  // Guincho de motor (talha) amarelo com corrente e motor pendurado.
+  const y = PM.plastic('#ffc93c');
+  mesh(rbox(0.9, 0.1, 0.12, 0.03), y, -1.4, 0.32, -1.9, g);
+  for (const sx of [-0.4, 0.4]) mesh(rbox(0.1, 0.08, 1.2, 0.02), y, -1.4 + sx, 0.3, -1.35, g);
+  mesh(rbox(0.16, 2.2, 0.16, 0.04), y, -1.4, 1.4, -1.9, g);
+  const arm = mesh(rbox(0.15, 0.15, 1.5, 0.04), y, -1.4, 2.4, -1.3, g); arm.rotation.x = 0.2;
+  for (let i = 0; i < 6; i++) ns(mesh(torus(0.04, 0.012, 4, 8), PM.metal('#5a6070'), -1.4, 2.05 - i * 0.08, -0.72, g)).rotation.y = i % 2 ? Math.PI / 2 : 0;
+  mesh(rbox(0.55, 0.42, 0.42, 0.05), PM.metal('#6b7180'), -1.4, 1.45, -0.72, g);
+  for (let i = 0; i < 3; i++) mesh(box(0.08, 0.1, 0.44), PM.metal('#9aa3b2'), -1.56 + i * 0.16, 1.72, -0.72, g);
+  // Bancada de madeira com morsa, gaveteiro, peças enferrujadas e máquina de solda.
+  mesh(rbox(1.5, 0.12, 0.62, 0.03), PM.wood([2, 1]), 0.95, 1.02, -2.3, g);
+  for (const sx of [0.3, 1.6]) mesh(box(0.08, 0.9, 0.55), PM.metal('#5a6070'), sx, 0.57, -2.3, g);
+  mesh(rbox(0.2, 0.18, 0.26, 0.03), PM.metal('#2f7bea'), 0.4, 1.17, -2.15, g);
+  const rust = [PM.plastic('#a0522d'), PM.metal('#6b7180'), PM.plastic('#c26a2e')];
+  for (let i = 0; i < 3; i++) mesh(rbox(0.28, 0.2, 0.28, 0.04), rust[i], 0.85 + i * 0.36, 1.18, -2.32, g);
+  mesh(rbox(0.5, 0.45, 0.4, 0.05), PM.plastic('#2f7bea'), 1.45, 0.45, -1.6, g);
+  ns(mesh(box(0.3, 0.1, 0.02), glow('#3aff9a', '#3aff9a', '#3aff9a', 0.8, 1.8), 1.45, 0.55, -1.39, g));
+  // Porta velha encostada na parede e pneus carecas.
+  const door = mesh(rbox(0.9, 0.8, 0.08, 0.04), PM.plastic('#8fa3b8'), 1.6, 0.68, -0.4, g); door.rotation.set(0, -Math.PI / 2, -0.15);
+  tireStack(g, -1.55, 1.9, 2);
+  levelStars(g, level, 3.55, -2.6);
+  return g;
+}
+
+export function premiumShowroom() {
+  const g = new THREE.Group();
+  g.add(slabP(3, 3));
+  groundAO(g, 5.8, 5.8);
+  const gloss = std('gloss', { color: '#f4f6fa', roughness: 0.08, metalness: 0.1 }, 1.2);
+  ns(mesh(box(5.6, 0.04, 5.6), gloss, 0, 0.24, 0, g));
+  // Parede do fundo azul-marinho com painel de LED e letreiro brilhante.
+  mesh(rbox(5.6, 3.3, 0.3, 0.06), PM.plastic('#1d2b4f'), 0, 1.85, -2.75, g);
+  for (let i = 0; i < 5; i++) ns(mesh(box(0.04, 2.6, 0.04), glow('#36b8ff', '#36b8ff', '#7fd7ff', 0.9, 2.2), -2.2 + i * 1.1, 1.7, -2.58, g));
+  const s = sign('SHOWROOM', 4.2, 0.8, { w: 768, h: 144, bg: null, fg: '#fff6fb', stroke: null, size: 110, glow: '#36b8ff' });
+  s.position.set(0, 2.85, -2.56); g.add(s);
+  // Colunas cromadas, vidros laterais e trilho de spots.
+  for (const sx of [-1, 1]) {
+    mesh(rbox(0.25, 3.3, 0.25, 0.05), PM.chrome(), sx * 2.75, 1.85, 2.6, g);
+    ns(mesh(box(0.08, 1.7, 5.2), std('showglass', { color: '#bfe7ff', roughness: 0.04, metalness: 0.3, transparent: true, opacity: 0.28, depthWrite: false }, 1.4), sx * 2.78, 1.05, 0, g));
+    mesh(box(0.1, 0.08, 5.3), PM.metal('#c6ccd6'), sx * 2.78, 1.92, 0, g);
+    mesh(rbox(0.12, 0.12, 5.4, 0.03), PM.metal('#3a3d48'), sx * 2.3, 3.4, 0, g);
+    for (const z of [-1.4, 0, 1.4]) {
+      const sp = mesh(cyl(0.1, 0.15, 0.28, 10), PM.metal('#22252e'), sx * 2.1, 3.22, z, g);
+      sp.rotation.z = sx * 0.6;
+      ns(mesh(sph(0.1, 8, 6), glow('#fff6e0', '#fff0c0', '#fff8e0', 0.8, 2.6), sx * 2.0, 3.12, z, g));
+    }
+  }
+  for (const sl of SHOWROOM_SLOTS) {
+    mesh(cyl(1.25, 1.35, 0.2, 40), std('podium', { color: '#e9edf3', roughness: 0.18, metalness: 0.3 }, 1.0), sl.x, 0.34, sl.z, g);
+    const ring = ns(mesh(torus(1.3, 0.045, 6, 48), glow('#36b8ff', '#36b8ff', '#36b8ff', 1.2, 2.6), sl.x, 0.42, sl.z, g));
+    ring.rotation.x = Math.PI / 2;
+  }
+  // Vasos com plantas nos cantos da frente.
+  for (const sx of [-2.4, 2.4]) { mesh(cyl(0.28, 0.22, 0.5, 14), PM.plastic('#ffffff'), sx, 0.5, 2.2, g); const b = premiumBush(sx > 0 ? 5 : 9, 0.55); b.position.set(sx, 0.62, 2.2); g.add(b); }
+  lamp(g, 0, 3, 0, '#d8f0ff', 10, 10);
+  g.userData.slots = SHOWROOM_SLOTS;
+  return g;
+}
+
+export function premiumGuincho(level) {
+  const g = new THREE.Group();
+  g.add(slabP(2, 3));
+  groundAO(g, 3.9, 5.6);
+  hazard(g, 3.6, 2.75);
+  // Cabine de atendimento rebocada, com janela, porta, ar-condicionado e laje colorida.
+  mesh(rbox(1.7, 0.3, 1.5, 0.04), PM.brick([2, 0.5]), -1.0, 0.37, -2.0, g);
+  mesh(rbox(1.6, 2.1, 1.4, 0.08), PM.plaster('#fff4dc', [1, 1]), -1.0, 1.4, -2.0, g);
+  mesh(rbox(1.8, 0.25, 1.6, 0.06), PM.plastic(TIER[level - 1]), -1.0, 2.55, -2.0, g);
+  mesh(rbox(1.0, 0.8, 0.08, 0.03), mat('#ffffff', { r: 0.5 }), -1.2, 1.55, -1.28, g);
+  ns(mesh(box(0.85, 0.65, 0.04), PM.pane(), -1.2, 1.55, -1.23, g));
+  mesh(rbox(0.35, 0.3, 0.5, 0.04), PM.metal('#e8ecf2'), -0.05, 1.9, -2.2, g);
+  // Placa 24H com fundo, postes e a luz de chamado (pisca quando tem chamado).
+  signBoard(g, 'GUINCHO 24H', 2.6, 0.6, 0.3, 3.3, -2.6, '#ffc93c', '#1d2b4f', '#1d2b4f', { w: 640, h: 128, fg: '#1d2b4f', size: 76 });
+  for (const sx of [-0.8, 1.4]) mesh(rbox(0.12, 3.0, 0.12, 0.03), PM.metal('#5a6070'), sx, 1.5, -2.72, g);
+  mesh(cyl(0.18, 0.2, 0.1, 12), PM.metal('#3a3d48'), -1.0, 2.72, -2.0, g);
+  const beacon = mesh(sph(0.22, 10, 8), mat('#ff3b3b', { e: '#ff2020', ei: 2 }), -1.0, 2.88, -2.0, g);
+  beacon.visible = false;
+  g.userData.beacon = beacon;
+  const truck = buildTowTruck();
+  truck.scale.setScalar(0.8);
+  truck.position.set(0.55, 0.22, 0.3);
+  g.add(truck);
+  g.userData.truck = truck;
+  for (let i = 0; i < 3; i++) g.add(buildCone(-1.6 + i * 0.5, 2.4));
+  // Corrente enrolada, pneu reserva e galões.
+  mesh(torus(0.25, 0.06, 6, 16), PM.metal('#6b7180'), 1.5, 0.3, -2.3, g).rotation.x = Math.PI / 2;
+  for (const [x, c] of [[1.1, '#e8473c'], [1.4, '#ffc93c']]) mesh(rbox(0.25, 0.4, 0.18, 0.04), PM.plastic(c), x, 0.43, -1.6, g);
+  levelStars(g, level, 3.85, -2.6);
   return g;
 }

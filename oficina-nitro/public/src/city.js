@@ -3,10 +3,14 @@
 // O que fica parado é juntado em poucos blocos (um por material) para o celular continuar leve.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { mat, mesh, box, cyl, sph, rbox, buildTree, buildPerson, animatePerson, buildBuilding, buildCar, textTexture, glow } from './models.js';
+import { mat, mesh, box, cyl, sph, rbox, buildTree, buildPerson, animatePerson, buildBuilding, buildCar, textTexture, glow, bakeGeo, indexedClone } from './models.js';
 import { ROAD } from './roads.js';
 import { VISUAL, inProto } from './visual.js';
 import * as P from './premium.js';
+import { PM } from './premium.js';
+import * as CP from './cityp.js';
+
+const PREM = VISUAL.premium;
 
 let treeSeed = 1;
 
@@ -91,31 +95,32 @@ function signMesh(text, w, h, opts) {
 // Junta tudo que é parado num bloco por material e por REGIÃO (quadrados de 36 unidades):
 // poucas chamadas de desenho, e o que está fora da câmera nem é desenhado (culling).
 const CHUNK = 36;
+function release() { this.array = null; }
 function bake(group) {
   group.updateMatrixWorld(true);
   const buckets = new Map();
   const box3 = new THREE.Box3(), c = new THREE.Vector3();
   group.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material)) return;
-    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const g = indexedClone(o.geometry);
     g.applyMatrix4(o.matrixWorld);
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k);
-    // Material com cor por vértice precisa do atributo; sem ele, todos do bloco ficam sem.
-    if (o.material.vertexColors && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3));
-    if (!o.material.vertexColors && g.attributes.color) g.deleteAttribute('color');
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-    if (!g.attributes.normal) g.computeVertexNormals();
-    g.clearGroups();
+    // Cores lisas viram cor por vértice num material compartilhado (bem menos chamadas de desenho).
+    const bm = bakeGeo(g, o.material);
     box3.setFromObject(o).getCenter(c);
     const big = box3.max.x - box3.min.x > CHUNK || box3.max.z - box3.min.z > CHUNK; // ruas compridas ficam inteiras
-    const key = o.material.uuid + (o.castShadow ? 'c' : 'n') + (big ? '|big' : `|${Math.floor(c.x / CHUNK)},${Math.floor(c.z / CHUNK)}`);
-    if (!buckets.has(key)) buckets.set(key, { m: o.material, cast: o.castShadow, list: [] });
+    const key = bm.uuid + (o.castShadow ? 'c' : 'n') + (big ? '|big' : `|${Math.floor(c.x / CHUNK)},${Math.floor(c.z / CHUNK)}`);
+    if (!buckets.has(key)) buckets.set(key, { m: bm, cast: o.castShadow, list: [] });
     buckets.get(key).list.push(g);
   });
   const out = new THREE.Group();
   for (const { m, cast, list } of buckets.values()) {
     const merged = mergeGeometries(list, false);
     if (!merged) continue;
+    // Depois de enviar para a placa de vídeo, a cópia na memória do JavaScript não é mais usada
+    // (ninguém clica nem testa colisão com a cidade): libera para o celular ficar mais leve.
+    merged.computeBoundingSphere(); merged.computeBoundingBox();
+    for (const a of Object.values(merged.attributes)) a.onUpload(release);
+    merged.index?.onUpload(release);
     const me = new THREE.Mesh(merged, m);
     me.castShadow = cast;
     me.receiveShadow = true;
@@ -129,6 +134,7 @@ const flat = (m) => { m.castShadow = false; return m; };
 
 // ---------------- peças da cidade ----------------
 function lampPost(g, x, z, h = 3.2) {
+  if (PREM) { const l = CP.parkLamp(h); l.position.set(x, 0, z); g.add(l); return; }
   mesh(cyl(0.07, 0.1, h, 8), mat('#2b3242', { m: 0.5, r: 0.4 }), x, h / 2, z, g);
   mesh(cyl(0.18, 0.12, 0.12, 10), mat('#2b3242', { m: 0.5, r: 0.4 }), x, h + 0.02, z, g);
   mesh(sph(0.22, 12, 10), glow('#fff1c4', '#3a3420', '#ffd27a', 0.15, 2.2), x, h + 0.22, z, g);
@@ -150,7 +156,8 @@ function flowerBed(g, x, z, s = 1) {
 
 function tree(g, x, z, s = 1) {
   // Visual novo na área do protótipo: espécies variadas (copa, ipê florido, pinheiro).
-  const t = VISUAL.premium && inProto(x, z) ? P.premiumTree(treeSeed++, s) : buildTree(s, Math.floor(Math.random() * 3));
+  // Perto da oficina a copa é mais redonda (mais detalhe); longe, um pouco mais simples (mais leve).
+  const t = PREM ? P.premiumTree(treeSeed++, s, inProto(x, z) ? 2 : 1) : buildTree(s, Math.floor(Math.random() * 3));
   t.position.set(x, 0, z);
   t.rotation.y = rnd(0, 6);
   g.add(t);
@@ -158,7 +165,7 @@ function tree(g, x, z, s = 1) {
 }
 
 function bush(g, x, z, s = 1) {
-  if (VISUAL.premium && inProto(x, z)) { const b = P.premiumBush(treeSeed++, s * 1.1); b.position.set(x, 0, z); g.add(b); return; }
+  if (PREM) { const b = P.premiumBush(treeSeed++, s * 1.1); b.position.set(x, 0, z); g.add(b); return; }
   const c = pick(['#4cb848', '#3fa63f', '#5ccc52']);
   mesh(sph(0.55 * s, 9, 7), mat(c, { flat: true }), x, 0.35 * s, z, g).scale.set(1, 0.75, 1);
   mesh(sph(0.4 * s, 9, 7), mat(c, { flat: true }), x + 0.4 * s, 0.3 * s, z + 0.15 * s, g).scale.set(1, 0.75, 1);
@@ -166,6 +173,7 @@ function bush(g, x, z, s = 1) {
 
 // Lojinha com toldo listrado e letreiro (frente virada para +z).
 function shop(name, wall, awn, signBg, w = 6, d = 5, h = 3.4) {
+  if (PREM) return CP.shopP(name, wall, awn, signBg, w, d, h);
   const g = new THREE.Group();
   mesh(rbox(w, h, d, 0.12), mat(wall), 0, h / 2, 0, g);
   mesh(rbox(w + 0.2, 0.3, d + 0.2, 0.08), mat('#ffffff'), 0, h + 0.1, 0, g);
@@ -189,7 +197,9 @@ function shop(name, wall, awn, signBg, w = 6, d = 5, h = 3.4) {
   return g;
 }
 
+let houseSeed = 1;
 function house(c1, roof, garden = true) {
+  if (PREM) return CP.houseP(c1, roof, garden, houseSeed++);
   const g = buildHouse2(c1, roof);
   if (garden) {
     // Cerquinha branca e jardim na frente.
@@ -218,6 +228,7 @@ function buildHouse2(color, roof) {
 }
 
 function church() {
+  if (PREM) return CP.churchP();
   const g = new THREE.Group();
   const white = mat('#f7f3ea'), blue = mat('#2f7bea'), roofM = mat('#c0533a', { flat: true });
   mesh(rbox(6, 4, 9, 0.15), white, 0, 2, 0, g);
@@ -248,6 +259,7 @@ function church() {
 }
 
 function apartments() {
+  if (PREM) return CP.apartmentsP();
   const g = new THREE.Group();
   const w = 7, d = 6, floors = 5, fh = 2.3;
   mesh(rbox(w, floors * fh, d, 0.15), mat('#f2c38b'), 0, (floors * fh) / 2, 0, g);
@@ -270,12 +282,14 @@ function apartments() {
 }
 
 function market() {
+  if (PREM) return CP.marketP();
   const g = shop('MERCADINHO', '#ffffff', '#46c35a', '#46c35a', 10, 7, 3.8);
   for (let i = 0; i < 3; i++) mesh(rbox(0.9, 0.5, 0.6, 0.05), mat(pick(['#e8473c', '#ffc93c', '#ff8a2a'])), -3 + i * 1.1, 0.4, 4.6, g); // caixotes de frutas
   return g;
 }
 
 function busStop() {
+  if (PREM) return CP.busStopP();
   const g = new THREE.Group();
   const metal = mat('#2b3242', { m: 0.5, r: 0.4 });
   for (const x of [-1.6, 1.6]) mesh(cyl(0.06, 0.06, 2.4, 8), metal, x, 1.2, -0.4, g);
@@ -325,13 +339,13 @@ function cart(color, umbrella, label) {
 function coreto() {
   const g = new THREE.Group();
   mesh(cyl(3, 3.2, 0.6, 8), mat('#f3efe6'), 0, 0.3, 0, g);
-  mesh(cyl(3.05, 3.05, 0.08, 8), mat('#c98a4b'), 0, 0.64, 0, g);
+  mesh(cyl(3.05, 3.05, 0.08, 8), PREM ? PM.wood([3, 3]) : mat('#c98a4b'), 0, 0.64, 0, g);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
     mesh(cyl(0.1, 0.12, 2.6, 8), mat('#ffffff'), Math.cos(a) * 2.7, 1.95, Math.sin(a) * 2.7, g);
     if (i !== 2) { const r = mesh(box(2.1, 0.08, 0.08), mat('#ffffff'), Math.cos(a + Math.PI / 8) * 2.6, 1.2, Math.sin(a + Math.PI / 8) * 2.6, g); r.rotation.y = -(a + Math.PI / 8) + Math.PI / 2; }
   }
-  const roof = mesh(new THREE.ConeGeometry(3.7, 1.8, 8), mat('#e8473c', { flat: true }), 0, 4.15, 0, g);
+  const roof = mesh(new THREE.ConeGeometry(3.7, 1.8, 8), PREM ? PM.roofTint('#e8473c', [4, 1]) : mat('#e8473c', { flat: true }), 0, 4.15, 0, g);
   roof.rotation.y = Math.PI / 8;
   mesh(rbox(7.2, 0.18, 7.2, 0.05), mat('#ffffff'), 0, 3.25, 0, g).scale.set(0.98, 1, 0.98);
   mesh(sph(0.22, 10, 8), mat('#ffd23d', { m: 0.7, r: 0.3 }), 0, 5.15, 0, g);
@@ -341,6 +355,7 @@ function coreto() {
 }
 
 function fountainBase() {
+  if (PREM) return CP.fountainP();
   const g = new THREE.Group();
   const stone = mat('#e3dccb'), stone2 = mat('#cfc6b0');
   mesh(cyl(3, 3.2, 0.75, 28), stone, 0, 0.37, 0, g);
@@ -375,11 +390,12 @@ function soccerField(w, d) {
   }
   // Alambrado (cerca) baixinho e arquibancada de madeira.
   for (let x = -w / 2; x <= w / 2; x += 2) for (const z of [-d / 2 - 0.8, d / 2 + 0.8]) mesh(cyl(0.05, 0.05, 1.4, 6), mat('#9aa3b2', { m: 0.6, r: 0.4 }), x, 0.7, z, g);
-  for (let i = 0; i < 3; i++) mesh(rbox(8, 0.3, 0.8, 0.05), mat('#c98a4b'), 0, 0.3 + i * 0.4, -d / 2 - 2 - i * 0.8, g);
+  for (let i = 0; i < 3; i++) mesh(rbox(8, 0.3, 0.8, 0.05), PREM ? PM.wood([4, 1]) : mat('#c98a4b'), 0, 0.3 + i * 0.4, -d / 2 - 2 - i * 0.8, g);
   return g;
 }
 
 function pond(rx, rz) {
+  if (PREM) return CP.pondP(rx, rz);
   const g = new THREE.Group();
   const edge = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 40), mat('#d8c9a3'));
   edge.scale.set(rx + 0.8, 1, rz + 0.8); edge.position.y = 0.04; g.add(flat(edge));
@@ -470,7 +486,8 @@ function nitroSign() {
   return g;
 }
 
-function parkedCar(g, x, z, rot) {
+function parkedCar(g, x, z, rot, bay) {
+  if (bay) bay(x, z);
   const c = buildCar({ type: pick(['hatch', 'sedan', 'pickup', 'van']), color: pick(['vermelho', 'azul', 'branco', 'amarelo', 'verde', 'preto']), wheels: 'padrao', spoiler: 'nenhum', neon: 'nenhum', decal: 'nenhum' }, { driver: false });
   c.position.set(x, 0, z);
   c.rotation.y = rot;
@@ -478,7 +495,7 @@ function parkedCar(g, x, z, rot) {
 }
 
 function road(g, x, z, w, d, rot = 0, h = 0.25) {
-  const r = new THREE.Mesh(box(w, h, d), mat('#4a4f5c', { r: 0.95 }));
+  const r = new THREE.Mesh(box(w, h, d), PREM ? PM.asphalt([w / 6, d / 6]) : mat('#4a4f5c', { r: 0.95 }));
   r.position.set(x, 0, z); r.rotation.y = rot; r.castShadow = false; r.receiveShadow = true;
   g.add(r);
 }
@@ -530,8 +547,9 @@ export class City {
     road(S, C2, D - 31, 7, 62);
     road(S, C1, (BZ - 3.5 + D + 1.6) / 2, 7, D + 1.6 - (BZ - 3.5), 0, 0.26);
     road(S, (C1 + C2) / 2, BZ, C2 - C1, 7, 0, 0.24);
-    zone(C1 - 4, D + 11, C1 + 4, D + 60); zone(C2 - 4, D - 64, C2 + 4, D + 60);
-    zone(C1 - 4, BZ - 4, C1 + 4, D + 2); zone(C1 - 4, BZ - 4, C2 + 4, BZ + 4);
+    const RW = PREM ? 5.6 : 4; // com o meio-fio e os postes, a faixa livre da rua é maior
+    zone(C1 - RW, D + 11, C1 + RW, D + 60); zone(C2 - RW, D - 64, C2 + RW, D + 60);
+    zone(C1 - RW, BZ - RW, C1 + RW, D + 2); zone(C1 - RW, BZ - RW, C2 + RW, BZ + RW);
     zebra(S, C1 - 2.8, D + 2.6, 'x', 6, 6.6);
     zebra(S, C2 - 2.8, D + 2.6, 'x', 6, 6.6);
     const dash = (x, z, alongX) => { const m = new THREE.Mesh(box(alongX ? 2 : 0.16, 0.02, alongX ? 0.16 : 2), mat('#ffd23d')); m.position.set(x, 0.15, z); S.add(flat(m)); };
@@ -540,6 +558,19 @@ export class City {
     for (let z = BZ + 5; z < D - 1; z += 4) dash(C1, z);
     for (let x = C1 + 5; x < C2 - 4; x += 4) dash(x, BZ, true);
     this.roads = { C1, C2, BZ };
+    // Visual novo: meio-fio nas ruas, baias para os carros parados e postes ao longo das ruas.
+    const bay = PREM ? CP.sideCurbs(S, D, ROAD) : null;
+    this.bay = bay;
+    if (PREM) {
+      const lamps = [[C1 + 4.4, D + 18], [C1 + 4.4, D + 30], [C1 + 4.4, D + 50], [C2 - 4.4, D + 18], [C2 - 4.4, D + 30], [C2 - 4.4, D + 44],
+        [C2 - 4.4, D - 8], [C2 - 4.4, D - 22], [C2 - 4.4, D - 40], [C2 - 4.4, D - 54], [C1 - 4.4, D - 6], [C1 - 4.4, BZ + 6]];
+      for (let x = C1 + 10; x < C2 - 6; x += 14) lamps.push([x, BZ - 4.4]);
+      for (const [x, z] of lamps) lampPost(S, x, z, 3.4);
+      for (const [x, z, k] of [[C1 + 4.3, D + 24, 'lixo'], [C2 - 4.3, D + 24, 'hidrante'], [C2 - 4.3, D - 15, 'lixo'], [C1 + 18, BZ - 4.3, 'hidrante'], [C1 + 46, BZ - 4.3, 'lixo']]) {
+        const o = k === 'lixo' ? P.trashBin() : P.hydrant();
+        o.position.set(x, 0, z); S.add(o);
+      }
+    }
     // Semáforo na esquina (as luzes trocam).
     const tl = trafficPole(); tl.position.set(C2 - 4.2, 0, D + 0.4); S.add(tl);
     this.tlights = ['#e8473c', '#ffd23d', '#46c35a'].map((c, i) => {
@@ -577,12 +608,13 @@ export class City {
     const fb = fountainBase(); fb.position.set(PX, 0, PZ); S.add(fb);
     this.fountain = { x: PX, z: PZ, drops: [] };
     const dropM = new THREE.MeshStandardMaterial({ color: '#bfe8ff', emissive: '#7fd0ff', emissiveIntensity: 0.25, transparent: true, opacity: 0.85, roughness: 0.1 });
-    for (let i = 0; i < 26; i++) {
-      const d = new THREE.Mesh(sph(0.09, 6, 5), dropM);
-      d.castShadow = false;
-      Dyn.add(d);
-      this.fountain.drops.push({ m: d, t: Math.random(), a: (i / 26) * Math.PI * 2, top: i % 2 });
-    }
+    // Gotas numa malha instanciada: 26 gotas, uma chamada de desenho.
+    const dropInst = new THREE.InstancedMesh(sph(0.09, 6, 5), dropM, 26);
+    dropInst.castShadow = false; dropInst.frustumCulled = false;
+    Dyn.add(dropInst);
+    this.fountain.inst = dropInst;
+    this.fountain.m4 = new THREE.Matrix4();
+    for (let i = 0; i < 26; i++) this.fountain.drops.push({ t: Math.random(), a: (i / 26) * Math.PI * 2, top: i % 2 });
     this.ripples = [0, 1, 2].map((i) => {
       const r = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 6, 32), new THREE.MeshBasicMaterial({ color: '#e8f8ff', transparent: true, opacity: 0.6 }));
       r.rotation.x = Math.PI / 2; r.position.set(PX, 0.72, PZ); Dyn.add(r);
@@ -711,7 +743,7 @@ export class City {
     // ===== Mercadinho, ponto de ônibus e outdoor (à direita, depois da rua transversal) =====
     const mk = market(); mk.position.set(C2 + 12, 0, D - 6); mk.rotation.y = 0; S.add(mk);
     zone(C2 + 4, D - 14, C2 + 22, D);
-    const pk = new THREE.Mesh(new THREE.BoxGeometry(14, 0.06, 7), mat('#5d6270', { r: 0.95 }));
+    const pk = new THREE.Mesh(new THREE.BoxGeometry(14, 0.06, 7), PREM ? PM.asphalt([14 / 6, 7 / 6]) : mat('#5d6270', { r: 0.95 }));
     pk.position.set(C2 + 12, 0.03, D - 15); pk.castShadow = false; S.add(pk);
     for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(box(0.12, 0.02, 3), mat('#ffffff')); m.position.set(C2 + 6.5 + i * 2.8, 0.07, D - 15); S.add(flat(m)); }
     parkedCar(S, C2 + 7.9, D - 15, 0);
@@ -728,10 +760,10 @@ export class City {
       S.add(p);
     }
     // Carros estacionados nas ruas transversais.
-    parkedCar(S, C1 - 4.6, D + 30, 0);
-    parkedCar(S, C1 + 4.6, D + 40, Math.PI);
-    parkedCar(S, C2 + 4.6, D - 26, 0);
-    parkedCar(S, C2 + 4.6, D + 34, Math.PI);
+    parkedCar(S, C1 - 4.75, D + 30, 0, this.bay);
+    parkedCar(S, C1 + 4.75, D + 40, Math.PI, this.bay);
+    parkedCar(S, C2 + 4.75, D - 26, 0, this.bay);
+    parkedCar(S, C2 + 4.75, D + 34, Math.PI, this.bay);
 
     // ===== Letreiro NITRO no morro atrás da pista =====
     const ns2 = nitroSign(); ns2.position.set(this.track.cx, 0, this.track.cz - this.track.R - 16); S.add(ns2);
@@ -836,7 +868,8 @@ export class City {
     const vel = P.streetSign('40'); vel.position.set(-27, 0, D + 12.4); S.add(vel);
     const vel2 = P.streetSign('40'); vel2.position.set(60.5, 0, D - 0.8); vel2.rotation.y = Math.PI; S.add(vel2);
     const avoid = (x, z) => this.blocked(x, z) || (z > D - 1.2 && z < D + 13.4) || (x > -17 && x < 59 && z > -11 && z < D + 1);
-    this.details = P.scatterDetails([[-36, -16, 66, 44]], avoid, 1100, 9);
+    // Tufos de grama e florzinhas no mapa todo (mais densos perto da oficina).
+    this.details = P.scatterDetails([[-36, -16, 66, 44], [-62, -52, this.maxW + 62, D + 60]], avoid, 2600, 9);
   }
 
   update(dt, night = 0) {
@@ -844,15 +877,18 @@ export class City {
     if (!this.dyn) { this.t += dt; return; }
     this.t += dt;
     const T = this.t;
+    if (PREM) P.waterTick(T);
     // Chafariz: gotas em arco caindo na bacia + ondinhas.
     const f = this.fountain;
-    for (const d of f.drops) {
+    f.drops.forEach((d, i) => {
       d.t = (d.t + dt * 0.9) % 1;
       const a = d.a + T * 0.15;
       const r = d.top ? 0.2 + d.t * 0.9 : 0.6 + d.t * 1.9;
       const h0 = d.top ? 3.05 : 2.55, up = d.top ? 1.1 : 0.7;
-      d.m.position.set(f.x + Math.cos(a) * r, h0 + up * 4 * d.t * (1 - d.t) - (d.top ? 0.6 : 1.9) * d.t * d.t, f.z + Math.sin(a) * r);
-    }
+      f.m4.makeTranslation(f.x + Math.cos(a) * r, h0 + up * 4 * d.t * (1 - d.t) - (d.top ? 0.6 : 1.9) * d.t * d.t, f.z + Math.sin(a) * r);
+      f.inst.setMatrixAt(i, f.m4);
+    });
+    f.inst.instanceMatrix.needsUpdate = true;
     for (const rp of this.ripples) {
       rp.t = (rp.t + dt * 0.35) % 1;
       rp.m.scale.setScalar(0.6 + rp.t * 2);

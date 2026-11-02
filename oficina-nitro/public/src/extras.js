@@ -30,25 +30,26 @@ export function updateHudExtras(ctx) {
 export function openMenu(ctx, { openSocial }) {
   const s = ctx.state;
   const items = [
-    ['equipe', 'Equipe', `${s.staff.length}/${L.teamSize(s)} contratados`, () => openStaff(ctx)],
-    ['caixa', 'Caixas', crateTotal(s) ? `${crateTotal(s)} para abrir!` : 'Ganhe em corridas e eventos', () => openCrates(ctx)],
-    ['album', 'Álbum de clientes', `${Object.keys(s.friends).length}/${CHARACTERS.length} conhecidos`, () => openAlbum(ctx)],
-    ['estilo', 'Peças raras', `${Object.keys(s.rare).length}/${RARE_PARTS.length} na coleção`, () => openCollection(ctx)],
-    ['evento', 'Evento da semana', L.currentEvent().name, () => openEvent(ctx)],
-    ['amigos', 'Online', ctx.online.on ? 'Amigos, concurso e nuvem' : 'Ver como jogar online', () => openSocial()],
+    ['equipe', 'Equipe', `${s.staff.length}/${L.teamSize(s)} contratados`, () => openStaff(ctx), '#2f7bea'],
+    ['caixa', 'Caixas', crateTotal(s) ? `${crateTotal(s)} para abrir!` : 'Ganhe em corridas e eventos', () => openCrates(ctx), '#ff8a2a'],
+    ['album', 'Álbum de clientes', `${Object.keys(s.friends).length}/${CHARACTERS.length} conhecidos`, () => openAlbum(ctx), '#8a5cf0'],
+    ['estilo', 'Peças raras', `${Object.keys(s.rare).length}/${RARE_PARTS.length} na coleção`, () => openCollection(ctx), '#ff4fa3'],
+    ['evento', 'Evento da semana', L.currentEvent().name, () => openEvent(ctx), '#46c35a'],
+    ['amigos', 'Online', ctx.online.on ? 'Amigos, concurso e nuvem' : 'Ver como jogar online', () => openSocial(), '#33b0e0'],
   ];
   const render = (box) => {
     const sf = ctx.sfx;
     const fs = document.fullscreenEnabled && document.documentElement.requestFullscreen;
-    const setting = (key, label, on) => `<button class="setting ${on ? 'on' : ''}" data-set="${key}"><i>${on ? '✔' : ''}</i>${label}</button>`;
-    box.innerHTML = ctx.head(`${icon('menu', 'hico')} Menu`) + `<div class="mbody"><div class="menugrid">${items.map(([ic, t, sub], i) => `
-      <button class="card menuitem" data-mi="${i}">${icon(ic, 'mico')}<h4>${t}</h4><span class="meta">${sub}</span>${ic === 'caixa' && crateTotal(s) ? `<i class="dot">${crateTotal(s)}</i>` : ''}</button>`).join('')}</div>
+    const setting = (key, label, on, ic) => `<button class="setting ${on ? 'on' : ''}" data-set="${key}" role="switch" aria-checked="${on}"><span class="sico">${icon(ic)}</span><span class="slabel">${label}</span><i>${on ? '✔' : ''}</i></button>`;
+    box.innerHTML = ctx.head(`${icon('menu', 'hico')} Menu`) + `<div class="mbody"><div class="menugrid">${items.map(([ic, t, sub, , c], i) => `
+      <button class="card menuitem" data-mi="${i}" style="--c:${c}">${icon(ic, 'mico')}<h4>${t}</h4><span class="meta">${sub}</span>${ic === 'caixa' && crateTotal(s) ? `<i class="dot">${crateTotal(s)}</i>` : ''}</button>`).join('')}</div>
+      <div class="sect">Configurações</div>
       <div class="settings">
-        ${setting('music', 'Música', sf.musicOn)}
-        ${setting('sound', 'Efeitos', !sf.muted)}
-        ${sf.canBuzz ? setting('haptics', 'Vibração', sf.haptics) : ''}
-        ${fs ? setting('full', 'Tela cheia', !!document.fullscreenElement) : ''}
-        ${setting('visual', 'Visual novo', VISUAL.premium)}
+        ${setting('music', 'Música', sf.musicOn, 'musica')}
+        ${setting('sound', 'Efeitos', !sf.muted, sf.muted ? 'mudo' : 'som')}
+        ${sf.canBuzz ? setting('haptics', 'Vibração', sf.haptics, 'telefone') : ''}
+        ${fs ? setting('full', 'Tela cheia', !!document.fullscreenElement, 'foto') : ''}
+        ${setting('visual', 'Visual novo', VISUAL.premium, 'estilo')}
       </div></div>`;
     box.querySelectorAll('[data-mi]').forEach((b) => b.onclick = () => { ctx.sfx.play('click'); ctx.closeModal(); setTimeout(items[Number(b.dataset.mi)][3], 140); });
     box.querySelectorAll('[data-set]').forEach((b) => b.onclick = async () => {
