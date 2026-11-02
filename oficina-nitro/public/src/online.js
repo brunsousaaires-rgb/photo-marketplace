@@ -137,6 +137,7 @@ export function profileSnapshot(state, fame) {
     fame,
     trophies: state.trophies,
     lotW: state.lotW,
+    land: state.land,
     track: !!state.track,
     uniform: state.uniform,
     buildings: state.buildings.filter((b) => !(b.build && !b.build.up)).map((b) => ({ type: b.type, x: b.x, z: b.z, level: b.level })),

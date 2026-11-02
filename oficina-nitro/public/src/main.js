@@ -349,10 +349,10 @@ function updateBubbles() {
     }
   }
   if (mode === 'play') {
-    const next = L.nextLand(state);
-    if (next && world.saleSign) {
-      const html = state.level >= next.lvl ? `<span class="jobic">${icon('terreno')}</span>${coin(next.cost)}` : `<span class="jobic">${icon('terreno')}</span>🔒 Nível ${next.lvl}`;
-      setBubble(seen, 'land', screenOf(world.saleSign.position, 3.6), 'sale', html, 'land', 0);
+    for (const { id, sign } of world.saleSigns || []) {
+      const l = LAND.find((q) => q.id === id);
+      const html = state.level >= l.lvl ? `<span class="jobic">${icon('terreno')}</span>${coin(l.cost)}` : `<span class="jobic">${icon('terreno')}</span>🔒 Nível ${l.lvl}`;
+      setBubble(seen, 'land:' + id, screenOf(sign.position, 3.6), 'sale', html, 'land', id);
     }
     if (!state.track && world.trackSign) {
       const html = state.level >= TRACK.lvl ? `<span class="jobic">${icon('corrida')}</span>${coin(TRACK.cost)}` : `<span class="jobic">${icon('corrida')}</span>🔒 Nível ${TRACK.lvl}`;
@@ -375,7 +375,7 @@ $('#bubbles').addEventListener('pointerdown', (e) => {
     case 'custom': openCustom(id); break;
     case 'loja': collectLoja(id); break;
     case 'tow': startTow(); break;
-    case 'land': askLand(); break;
+    case 'land': askLand(el.dataset.id); break;
     case 'track': askTrack(); break;
   }
 });
@@ -484,33 +484,41 @@ function afterChange() {
 }
 
 // ---------- expansões ----------
-function askLand() {
-  const next = L.nextLand(state);
-  if (!next) return;
+function askLand(id = null) {
+  const l = (id && LAND.find((q) => q.id === id)) || L.nextLand(state);
+  if (!l) return;
   sfx.play('click');
   openModal((box) => {
-    const ok = state.level >= next.lvl;
-    box.innerHTML = head(`${icon('terreno', 'hico')} ${next.name}`, 'gold') + `
+    const st = L.landStatus(state, l);
+    const ok = st === 'open';
+    const owned = state.land.length;
+    box.innerHTML = head(`${icon('terreno', 'hico')} ${l.name}`, 'gold') + `
       <div class="mbody center">
         <div class="hero">${icon('terreno')}</div>
-        <b>+${next.cols} colunas de terreno para construir mais serviços e decorar.</b>
-        <div class="reqnote">Terrenos comprados: ${state.land.length}/${LAND.length}</div>
-        <button class="btn yellow" id="buyLand" style="width:100%" ${!ok || state.coins < next.cost ? 'disabled' : ''}>${ok ? `Comprar ${coin(next.cost)}` : `Libera no nível ${next.lvl}`}</button>
+        <b>${l.desc}</b>
+        <div class="reqnote">${l.w} × ${l.h} quadrados · Terrenos comprados: ${owned}/${LAND.length}</div>
+        <button class="btn yellow" id="buyLand" style="width:100%" ${!ok || state.coins < l.cost ? 'disabled' : ''}>${ok ? `Comprar ${coin(l.cost)}` : st === 'level' ? `Libera no nível ${l.lvl}` : 'Compre os terrenos ao lado antes'}</button>
       </div>`;
-    box.querySelector('#buyLand').onclick = () => {
-      const r = L.buyLand(state);
-      if (!r.ok) { sfx.play('error'); return; }
-      closeModal();
-      world.setLot(state);
-      world.sync(state);
-      sfx.play('build');
-      const c = { x: (state.lotW - next.cols / 2) * TILE, y: 0, z: (GRID_H * TILE) / 2 };
-      world.panTo(world.target.clone().set(c.x - 4, 0, c.z - 1), world.zoomTarget);
-      setTimeout(() => world.confetti(c, 60), 500);
-      toast('Terreno comprado! Mais espaço para crescer 🏗️');
-      afterChange();
-    };
+    box.querySelector('#buyLand').onclick = () => buyLand(l.id);
   });
+}
+
+function buyLand(id) {
+  const r = L.buyLand(state, id);
+  if (!r.ok) { sfx.play('error'); if (r.reason === 'coins') toast('Moedas insuficientes'); return; }
+  closeModal();
+  const l = r.land;
+  world.setLot(state);
+  world.sync(state);
+  world.unlockParcel(l.id);
+  sfx.play('build');
+  setTimeout(() => sfx.play('stars'), 500);
+  const c = new THREE.Vector3((l.x + l.w / 2) * TILE, 0, (l.z + l.h / 2) * TILE);
+  world.stopMotion();
+  world.panTo(c.clone().add(new THREE.Vector3(1, 0, 1)), Math.min(world.zoomTarget, 1));
+  setTimeout(() => { const p = screenOf(c, 1); floatText(p, 'TERRENO NOVO!', '#ffd23d'); }, 700);
+  toast('Terreno comprado! Mais espaço para crescer 🏗️');
+  afterChange();
 }
 
 function askTrack() {
@@ -698,7 +706,8 @@ function suggestSpot(type, moveId) {
   const d = BUILDINGS[type];
   const cx = world.target.x / 2 - d.w / 2, cz = world.target.z / 2 - d.d / 2;
   let best = null, bd = 1e9;
-  for (let z = 0; z <= GRID_H - d.d; z++) for (let x = 0; x <= state.lotW - d.w; x++) {
+  const bb = L.lotBounds(state);
+  for (let z = bb.z0; z <= bb.z1 - d.d; z++) for (let x = bb.x0; x <= bb.x1 - d.w; x++) {
     if (!L.canPlace(state, type, x, z, moveId)) continue;
     const dist = (x - cx) ** 2 + (z - cz) ** 2;
     if (dist < bd) { bd = dist; best = { x, z }; }
@@ -765,12 +774,16 @@ function openShop(tab = 'servicos') {
   const render = (box) => {
     let grid = '';
     if (tab === 'expansoes') {
-      const next = L.nextLand(state);
       const cards = [];
-      if (next) {
-        const ok = state.level >= next.lvl;
-        cards.push(`<div class="card shopcard ${ok ? '' : 'locked'}"><div class="big">${icon('terreno')}</div><div class="sinfo"><h4>${next.name}</h4><p>+${next.cols} colunas de terreno para crescer.</p><span class="meta">${state.land.length}/${LAND.length} comprados</span><button class="btn ${ok ? 'yellow' : 'gray'}" data-exp="land" ${!ok || state.coins < next.cost ? 'disabled' : ''}>${ok ? coin(next.cost) : `🔒 Nível ${next.lvl}`}</button></div></div>`);
-      } else cards.push(`<div class="card shopcard"><div class="big">${icon('terreno')}</div><div class="sinfo"><h4>Terrenos</h4><p>Você já comprou todos os terrenos!</p></div></div>`);
+      // Todos os terrenos: comprados, à venda, travados por nível ou que dependem de outro terreno.
+      for (const l of [...LAND].sort((a, b) => a.lvl - b.lvl)) {
+        const st = L.landStatus(state, l);
+        const btn = st === 'owned' ? '<button class="btn gray" disabled>Seu ✔</button>'
+          : st === 'open' ? `<button class="btn yellow" data-exp="land" data-id="${l.id}" ${state.coins < l.cost ? 'disabled' : ''}>${coin(l.cost)}</button>`
+          : st === 'level' ? `<button class="btn gray" disabled>🔒 Nível ${l.lvl}</button>`
+          : '<button class="btn gray" disabled>Compre o vizinho antes</button>';
+        cards.push(`<div class="card shopcard ${st === 'owned' || st === 'open' ? '' : 'locked'}"><div class="big">${icon('terreno')}</div><div class="sinfo"><h4>${l.name}</h4><p>${l.desc}</p><span class="meta">${l.w} × ${l.h} quadrados · nível ${l.lvl}</span>${btn}</div></div>`);
+      }
       const okT = state.level >= TRACK.lvl;
       cards.push(`<div class="card shopcard ${okT ? '' : 'locked'}"><div class="big">${icon('corrida')}</div><div class="sinfo"><h4>Pista de Corrida</h4><p>Corra com os carros da sua coleção por prêmios e troféus.</p><button class="btn ${state.track ? 'gray' : okT ? 'yellow' : 'gray'}" data-exp="track" ${state.track || !okT || state.coins < TRACK.cost ? 'disabled' : ''}>${state.track ? 'Construída ✔' : okT ? coin(TRACK.cost) : `🔒 Nível ${TRACK.lvl}`}</button></div></div>`);
       grid = cards.join('');
@@ -799,7 +812,7 @@ function openShop(tab = 'servicos') {
       </div>`;
     box.querySelectorAll('[data-shoptab]').forEach((b) => b.onclick = () => { sfx.play('click'); tab = b.dataset.shoptab; rerender(render); });
     box.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => { sfx.play('click'); closeModal(); startPlacement(b.dataset.buy); });
-    box.querySelectorAll('[data-exp]').forEach((b) => b.onclick = () => { closeModal(); b.dataset.exp === 'land' ? askLand() : askTrack(); });
+    box.querySelectorAll('[data-exp]').forEach((b) => b.onclick = () => { closeModal(); b.dataset.exp === 'land' ? askLand(b.dataset.id) : askTrack(); });
   };
   openModal(render, { wide: true });
 }
@@ -979,7 +992,7 @@ function onTap(x, y) {
   }
   const hit = world.pick(x, y);
   if (!hit) return;
-  if (hit.kind === 'land') return askLand();
+  if (hit.kind === 'land') return askLand(hit.id);
   if (hit.kind === 'track') return askTrack();
   if (hit.kind === 'car') {
     if (state.queue.some((c) => c.id === hit.id)) { assignCustomer(hit.id); return; }

@@ -16,12 +16,36 @@ const mig = L.migrate(old);
 assert.equal(mig.lotW, 16);
 assert.ok(Array.isArray(mig.garage));
 
+// Save v2 com terreno antigo comprado vira v3 sem perder nada.
+const v2 = JSON.parse(JSON.stringify(s));
+v2.v = 2; v2.land = ['leste1']; v2.lotW = 22; v2.coins = 777; v2.xp = 55; v2.level = 4;
+const m3 = L.migrate(v2);
+assert.equal(m3.v, 3); assert.equal(m3.lotW, 22); assert.deepEqual(m3.land, ['leste1']);
+assert.equal(m3.coins, 777); assert.equal(m3.level, 4); assert.equal(m3.buildings.length, s.buildings.length);
+assert.ok(L.ownedTiles(m3).has('21,0') && !L.ownedTiles(m3).has('22,0'), 'terreno leste1 não ficou seu');
+
+// Regras de compra: precisa encostar, ter nível e moedas.
+{
+  const t = L.newState(); t.coins = 1e6; t.level = 20;
+  assert.equal(L.buyLand(t, 'fundos2').reason, 'needs', 'fundos2 precisa dos fundos1 e da esquina');
+  assert.ok(L.buyLand(t, 'fundos1').ok);
+  t.level = 7;
+  assert.equal(L.buyLand(t, 'oeste1').reason, 'level');
+  t.level = 20;
+  assert.ok(L.buyLand(t, 'oeste1').ok && L.buyLand(t, 'oeste2').ok);
+  assert.ok(L.canPlace(t, 'arvore', -7, -4), 'dá para construir no canto comprado');
+  assert.ok(!L.canPlace(t, 'arvore', -8, 0), 'fora do terreno');
+  // Serviço nos fundos: a faixa de acesso atravessa o lote até a avenida.
+  assert.ok(L.canPlace(t, 'lavajato', 10, -4), 'serviço nos fundos com faixa livre');
+}
+
 const ev = [];
 let customs = 0, perfect = 0, angry = 0, races = 0, wins = 0, built = 0, rareGot = 0, tows = 0, towCustomers = 0, rains = 0;
 const tryPlace = (type) => {
   if (!L.canBuy(s, type).ok) return false;
   if (BUILDINGS[type].decor && L.count(s, type) >= 6) return false;
-  for (let z = 0; z < 9; z++) for (let x = 0; x < s.lotW; x++) if (L.canPlace(s, type, x, z)) { L.place(s, type, x, z); return true; }
+  const bb = L.lotBounds(s);
+  for (let z = bb.z0; z < bb.z1; z++) for (let x = bb.x0; x < bb.x1; x++) if (L.canPlace(s, type, x, z)) { L.place(s, type, x, z); return true; }
   return false;
 };
 for (let t = 0; t < 60 * 60; t += 0.25) {
@@ -91,7 +115,7 @@ assert.ok(Number.isFinite(s.coins) && s.coins >= 0);
 assert.ok(JSON.parse(JSON.stringify(s)).buildings.length === s.buildings.length, 'estado precisa ser JSON');
 for (const b of s.buildings) {
   assert.ok(BUILDINGS[b.type]);
-  assert.ok(b.x + BUILDINGS[b.type].w <= s.lotW, 'construção fora do terreno');
+  for (let i = 0; i < BUILDINGS[b.type].w; i++) for (let k = 0; k < BUILDINGS[b.type].d; k++) assert.ok(L.ownedTiles(s).has(`${b.x + i},${b.z + k}`), 'construção fora do terreno');
 }
 
 assert.ok(Object.keys(s.friends).length >= 3, `poucos clientes fixos: ${Object.keys(s.friends).length}`);

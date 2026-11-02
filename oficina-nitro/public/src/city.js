@@ -462,8 +462,8 @@ function parkedCar(g, x, z, rot) {
   g.add(c);
 }
 
-function road(g, x, z, w, d, rot = 0) {
-  const r = new THREE.Mesh(box(w, 0.25, d), mat('#4a4f5c', { r: 0.95 }));
+function road(g, x, z, w, d, rot = 0, h = 0.25) {
+  const r = new THREE.Mesh(box(w, h, d), mat('#4a4f5c', { r: 0.95 }));
   r.position.set(x, 0, z); r.rotation.y = rot; r.castShadow = false; r.receiveShadow = true;
   g.add(r);
 }
@@ -492,7 +492,8 @@ export class City {
   // Áreas reservadas (lote, terrenos à venda, pista, ruas) onde não nasce árvore.
   blocked(x, z) {
     const D = this.D, tp = this.track;
-    if (x > -3 && x < this.maxW + 3 && z > -2.5 && z < D + 1.5) return true;
+    // Oficina e todos os terrenos que ainda podem ser comprados (esquerda, direita e fundos).
+    if (x > -16 && x < this.maxW + 3 && z > -10 && z < D + 1.5) return true;
     if (x > tp.cx - tp.L - tp.R - 9 && x < tp.cx + tp.L + tp.R + 9 && z > tp.cz - tp.R - 14 && z < tp.cz + tp.R + 6) return true;
     if (z > D - 1 && z < D + 12.6) return true; // avenida e calçadas
     for (const [x0, z0, x1, z1] of this.zones) if (x > x0 && x < x1 && z > z0 && z < z1) return true;
@@ -506,16 +507,24 @@ export class City {
     this.zones = [];
     const zone = (x0, z0, x1, z1) => this.zones.push([x0, z0, x1, z1]);
 
-    // Ruas transversais (decorativas) com faixa de pedestres na avenida.
-    const C1 = -20, C2 = 66;
+    // Ruas: a lateral (esquerda, x = C1) e a transversal (direita, x = C2) cruzam a avenida;
+    // a Rua dos Fundos (z = BZ) liga as duas por trás da oficina, fechando um anel.
+    const C1 = -17, C2 = 66, BZ = -13;
     road(S, C1, D + 12 + 22, 7, 44);
     road(S, C2, D + 12 + 22, 7, 44);
     road(S, C2, D - 31, 7, 62);
+    road(S, C1, (BZ - 3.5 + D + 1.6) / 2, 7, D + 1.6 - (BZ - 3.5), 0, 0.26);
+    road(S, (C1 + C2) / 2, BZ, C2 - C1, 7, 0, 0.24);
     zone(C1 - 4, D + 11, C1 + 4, D + 60); zone(C2 - 4, D - 64, C2 + 4, D + 60);
+    zone(C1 - 4, BZ - 4, C1 + 4, D + 2); zone(C1 - 4, BZ - 4, C2 + 4, BZ + 4);
     zebra(S, C1 - 2.8, D + 2.6, 'x', 6, 6.6);
     zebra(S, C2 - 2.8, D + 2.6, 'x', 6, 6.6);
-    for (let z = D + 15; z < D + 56; z += 4) { const m = new THREE.Mesh(box(0.16, 0.02, 2), mat('#ffd23d')); m.position.set(C1, 0.14, z); S.add(flat(m)); const m2 = m.clone(); m2.position.x = C2; S.add(m2); }
-    for (let z = D - 60; z < D - 2; z += 4) { const m = new THREE.Mesh(box(0.16, 0.02, 2), mat('#ffd23d')); m.position.set(C2, 0.14, z); S.add(flat(m)); }
+    const dash = (x, z, alongX) => { const m = new THREE.Mesh(box(alongX ? 2 : 0.16, 0.02, alongX ? 0.16 : 2), mat('#ffd23d')); m.position.set(x, 0.15, z); S.add(flat(m)); };
+    for (let z = D + 15; z < D + 56; z += 4) { dash(C1, z); dash(C2, z); }
+    for (let z = D - 60; z < D - 2; z += 4) if (Math.abs(z - BZ) > 4) dash(C2, z);
+    for (let z = BZ + 5; z < D - 1; z += 4) dash(C1, z);
+    for (let x = C1 + 5; x < C2 - 4; x += 4) dash(x, BZ, true);
+    this.roads = { C1, C2, BZ };
     // Semáforo na esquina (as luzes trocam).
     const tl = trafficPole(); tl.position.set(C2 - 4.2, 0, D + 0.4); S.add(tl);
     this.tlights = ['#e8473c', '#ffd23d', '#46c35a'].map((c, i) => {
@@ -611,10 +620,10 @@ export class City {
     const hc = [['#ffe0b3', '#e8473c'], ['#d6ecff', '#2f7bea'], ['#e9ffd6', '#8a5cf0'], ['#ffd6e8', '#ff8a2a']];
     hc.forEach(([a, b], i) => {
       const h = house(a, b);
-      h.position.set(-13 + i * 6.2, 0, D + 15.4);
+      h.position.set(-10.5 + i * 5.2, 0, D + 15.4);
       if (i < 3) S.add(h);
     });
-    zone(-16.5, D + 12, 4.5, D + 21);
+    zone(-13, D + 12, 4.5, D + 21);
     // Segunda fileira de casas, mais atrás.
     for (let i = 0; i < 9; i++) {
       const [a, b] = hc[i % hc.length];
@@ -644,7 +653,7 @@ export class City {
     this.field = { x: FX, z: FZ, ballT: 0, from: [FX, FZ], to: [FX, FZ], kick: 0 };
 
     // ===== Parque com lago e parquinho (à esquerda da oficina) =====
-    const LX = -24, LZ = 2;
+    const LX = -38, LZ = 2;
     const pd = pond(8, 5.5); pd.position.set(LX, 0, LZ); S.add(pd);
     zone(LX - 11, LZ - 8, LX + 11, LZ + 8);
     const path = new THREE.Mesh(new THREE.RingGeometry(9.7, 11.3, 48, 1), texMat(pavers([16, 2]), { side: THREE.DoubleSide }));
@@ -654,7 +663,7 @@ export class City {
     for (const [lx, lz] of [[LX - 11, LZ], [LX + 11, LZ], [LX, LZ - 8.6], [LX, LZ + 8.6]]) lampPost(S, lx, lz);
     this.ducks = [0, 1, 2, 3].map((i) => { const d = duck(); d.scale.setScalar(i === 0 ? 1.2 : 0.7); Dyn.add(d); return { d, a: i * 0.35, r: 0.55 }; });
     this.pondPos = { x: LX, z: LZ, rx: 8, rz: 5.5 };
-    const PGX = -24, PGZ = -16;
+    const PGX = -38, PGZ = -18;
     const pg = playground(); pg.position.set(PGX, 0, PGZ); S.add(pg);
     zone(PGX - 8, PGZ - 6, PGX + 8, PGZ + 6);
     this.swings = [0, 1].map((i) => {
@@ -680,7 +689,7 @@ export class City {
     for (let i = 0; i < 14; i++) {
       const a = rnd(0, Math.PI * 2), r = rnd(13, 17);
       const x = LX + Math.cos(a) * r, z = LZ + Math.sin(a) * r * 0.8;
-      if (x > -4 || this.blocked(x, z)) continue;
+      if (x > -24 || this.blocked(x, z)) continue;
       tree(S, x, z, rnd(1, 1.5));
     }
 
@@ -704,10 +713,10 @@ export class City {
       S.add(p);
     }
     // Carros estacionados nas ruas transversais.
-    parkedCar(S, C1 - 2.4, D + 30, 0);
-    parkedCar(S, C1 + 2.4, D + 40, Math.PI);
-    parkedCar(S, C2 - 2.4, D - 22, 0);
-    parkedCar(S, C2 + 2.4, D + 34, Math.PI);
+    parkedCar(S, C1 - 4.6, D + 30, 0);
+    parkedCar(S, C1 + 4.6, D + 40, Math.PI);
+    parkedCar(S, C2 + 4.6, D - 26, 0);
+    parkedCar(S, C2 + 4.6, D + 34, Math.PI);
 
     // ===== Letreiro NITRO no morro atrás da pista =====
     const ns2 = nitroSign(); ns2.position.set(this.track.cx, 0, this.track.cz - this.track.R - 16); S.add(ns2);

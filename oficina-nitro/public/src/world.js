@@ -7,7 +7,7 @@ import {
   animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH,
 } from './models.js';
 export { LOT_D_EXPORT as LOT_D };
-import { laneTiles, canPlace, QUEUE_SLOTS } from './logic.js';
+import { laneTiles, canPlace, QUEUE_SLOTS, parcelsOf, landStatus, lotBounds } from './logic.js';
 import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
 import { City, grassTexture } from './city.js';
 
@@ -18,6 +18,7 @@ const QUEUE_Z = LOT_D + 3.2; // vagas de espera, coladas na calçada
 const PASS_Z = LOT_D + 6.4; // mão para a direita: clientes chegando e indo embora
 const TRAFFIC_Z = LOT_D + 9.2; // mão para a esquerda: trânsito da cidade
 const MID_UT = (PASS_Z + TRAFFIC_Z) / 2; // meio do retorno
+export const JUNCTIONS = [-17, 66]; // x das ruas que chegam na avenida (rua lateral e rua transversal)
 const SLOT_HALF = 2.2; // meia vaga (carro + folga)
 const SLOT_GAP = 5.6; // distância mínima entre centros de vagas (espaço para manobrar)
 let SERIAL = 0; // ordem de chegada: quem chegou antes tem a preferência
@@ -25,7 +26,8 @@ const CAM_DIR = new THREE.Vector3(1, 1.25, 1).normalize();
 const DAY_LEN = 360; // segundos para um dia completo
 const ZOOM_MIN = 0.42, ZOOM_MAX = 2.8;
 const HOME = new THREE.Vector3(14.5, 0, LOT_D / 2 - 1.5); // onde a câmera começa (a oficina)
-export const TRACK_PATH = makeTrackPath(MAX_LOT_W / 2, -24, 15, 9);
+// A pista fica atrás da Rua dos Fundos (deixa espaço para os terrenos dos fundos).
+export const TRACK_PATH = makeTrackPath(MAX_LOT_W / 2, -30, 15, 9);
 
 export const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 const easeOutBack = (t) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
@@ -164,57 +166,93 @@ export class World {
   setLot(state) {
     const G = this.lotGroup;
     G.clear();
-    this.buildLotInto(G, state.lotW);
-    const W = state.lotW * TILE;
-    this.placeSaleAndTrack(state, G, W);
+    this.buildLotInto(G, parcelsOf(state.land));
+    this.placeSaleAndTrack(state, G);
   }
 
-  buildLotInto(G, lotW) {
-    const W = lotW * TILE;
-    const tex = (() => {
+  // Desenha o lote: um piso por terreno e a cerca viva só na borda de fora (menos a frente, que é a avenida).
+  buildLotInto(G, parcels) {
+    const own = new Set();
+    for (const p of parcels) for (let x = p.x; x < p.x + p.w; x++) for (let z = p.z; z < p.z + p.h; z++) own.add(`${x},${z}`);
+    const has = (x, z) => own.has(`${x},${z}`);
+    if (!this.lotTile) {
       const c = document.createElement('canvas');
       c.width = c.height = 128;
       const g = c.getContext('2d');
       g.fillStyle = '#d9dde3'; g.fillRect(0, 0, 128, 128);
       g.strokeStyle = '#c4c9d1'; g.lineWidth = 4; g.strokeRect(0, 0, 128, 128);
-      const t = new THREE.CanvasTexture(c);
+      this.lotTile = c;
+    }
+    for (const p of parcels) {
+      const t = new THREE.CanvasTexture(this.lotTile);
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(lotW, GRID_H);
-      return t;
-    })();
-    const lot = new THREE.Mesh(new THREE.BoxGeometry(W, 0.2, LOT_D), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
-    lot.position.set(W / 2, -0.08, LOT_D / 2);
-    lot.receiveShadow = true;
-    G.add(lot);
-    const curb = mat('#b8bec8');
-    mesh(box(W + 0.6, 0.35, 0.3), curb, W / 2, 0.05, -0.15, G);
-    mesh(box(0.3, 0.35, LOT_D), curb, -0.15, 0.05, LOT_D / 2, G);
-    mesh(box(0.3, 0.35, LOT_D), curb, W + 0.15, 0.05, LOT_D / 2, G);
+      t.repeat.set(p.w, p.h);
+      const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 });
+      m.envMapIntensity = 0.12;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(p.w * TILE, 0.2, p.h * TILE), m);
+      slab.position.set((p.x + p.w / 2) * TILE, -0.08, (p.z + p.h / 2) * TILE);
+      slab.receiveShadow = true;
+      slab.userData.parcel = p.id;
+      G.add(slab);
+    }
+    // Bordas: junta quadrados vizinhos numa linha só de cerca viva.
     const hedge = mat('#3fa63f', { flat: true });
-    mesh(rbox(W + 2, 1.1, 1, 0.4), hedge, W / 2, 0.55, -1.0, G);
-    mesh(rbox(1, 1.1, LOT_D + 1, 0.4), hedge, -1.0, 0.55, LOT_D / 2 - 0.5, G);
-    mesh(rbox(1, 1.1, LOT_D + 1, 0.4), hedge, W + 1.0, 0.55, LOT_D / 2 - 0.5, G);
+    const runs = new Map();
+    const push = (key, a) => { if (!runs.has(key)) runs.set(key, []); runs.get(key).push(a); };
+    for (const k of own) {
+      const [x, z] = k.split(',').map(Number);
+      if (!has(x - 1, z)) push(`L|${x}`, z);
+      if (!has(x + 1, z)) push(`R|${x}`, z);
+      if (!has(x, z - 1)) push(`B|${z}`, x);
+      if (!has(x, z + 1) && z + 1 < GRID_H) push(`F|${z}`, x);
+    }
+    for (const [key, list] of runs) {
+      const [side, n] = [key.split('|')[0], Number(key.split('|')[1])];
+      list.sort((a, b) => a - b);
+      let a0 = list[0], prev = list[0];
+      const flush = (a, b) => {
+        // Estica a ponta 1 unidade para fechar o canto, só se ali fora não for terreno seu.
+        if (side === 'L' || side === 'R') {
+          const cx = side === 'L' ? n : n;
+          const ext0 = !has(cx, a - 1) ? 1 : 0, ext1 = b + 1 < GRID_H && !has(cx, b + 1) ? 1 : 0;
+          const z0 = a * TILE - ext0, z1 = (b + 1) * TILE + ext1;
+          const x = side === 'L' ? n * TILE - 1 : (n + 1) * TILE + 1;
+          mesh(rbox(1, 1.1, z1 - z0, 0.4), hedge, x, 0.55, (z0 + z1) / 2, G);
+        } else {
+          const ext0 = !has(a - 1, n) ? 1 : 0, ext1 = !has(b + 1, n) ? 1 : 0;
+          const x0 = a * TILE - ext0, x1 = (b + 1) * TILE + ext1;
+          const z = side === 'B' ? n * TILE - 1 : (n + 1) * TILE + 1;
+          mesh(rbox(x1 - x0, 1.1, 1, 0.4), hedge, (x0 + x1) / 2, 0.55, z, G);
+        }
+      };
+      for (let i = 1; i < list.length; i++) {
+        if (list[i] !== prev + 1) { flush(a0, prev); a0 = list[i]; }
+        prev = list[i];
+      }
+      flush(a0, prev);
+    }
   }
 
-  placeSaleAndTrack(state, G, W) {
-    // Próximo terreno à venda: cerquinha de corda + placa.
-    const next = LAND[state.land.length];
-    this.saleSign = null;
-    if (next) {
-      const x0 = W + 2, x1 = W + next.cols * TILE;
-      const post = mat('#c98a4b'), rope = mat('#f2e3c4');
-      for (let x = x0; x <= x1; x += 2) for (const z of [0.5, LOT_D - 0.5]) mesh(cyl(0.08, 0.08, 0.9, 6), post, x, 0.45, z, G);
-      for (let z = 0.5; z <= LOT_D - 0.5; z += 2) mesh(cyl(0.08, 0.08, 0.9, 6), post, x1, 0.45, z, G);
-      for (const z of [0.5, LOT_D - 0.5]) mesh(box(x1 - x0, 0.05, 0.05), rope, (x0 + x1) / 2, 0.75, z, G);
-      mesh(box(0.05, 0.05, LOT_D - 1), rope, x1, 0.75, LOT_D / 2, G);
-      const s = buildSaleSign('À VENDA', `Nível ${next.lvl}`);
-      s.position.set((W + x1) / 2 + 1, 0, LOT_D / 2);
-      s.rotation.y = Math.PI / 4;
-      s.userData.pick = { kind: 'land' };
-      G.add(s);
-      this.saleSign = s;
+  placeSaleAndTrack(state, G) {
+    // Terrenos à venda que já encostam no seu: cerquinha de corda + placa (toque para comprar).
+    this.saleSigns = [];
+    const post = mat('#c98a4b'), rope = mat('#f2e3c4');
+    for (const l of LAND) {
+      const st = landStatus(state, l);
+      if (st !== 'open' && st !== 'level') continue;
+      const x0 = l.x * TILE + 0.6, x1 = (l.x + l.w) * TILE - 0.6, z0 = l.z * TILE + 0.6, z1 = Math.min((l.z + l.h) * TILE - 0.6, LOT_D - 0.5);
+      const n = (a, b) => Math.max(1, Math.round((b - a) / 2));
+      for (const z of [z0, z1]) { for (let i = 0; i <= n(x0, x1); i++) mesh(cyl(0.08, 0.08, 0.9, 6), post, x0 + ((x1 - x0) * i) / n(x0, x1), 0.45, z, G); mesh(box(x1 - x0, 0.05, 0.05), rope, (x0 + x1) / 2, 0.75, z, G); }
+      for (const x of [x0, x1]) { for (let i = 1; i < n(z0, z1); i++) mesh(cyl(0.08, 0.08, 0.9, 6), post, x, 0.45, z0 + ((z1 - z0) * i) / n(z0, z1), G); mesh(box(0.05, 0.05, z1 - z0), rope, x, 0.75, (z0 + z1) / 2, G); }
+      const sgn = buildSaleSign('À VENDA', `Nível ${l.lvl}`);
+      sgn.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2);
+      sgn.rotation.y = Math.PI / 4;
+      sgn.userData.pick = { kind: 'land', id: l.id };
+      G.add(sgn);
+      this.saleSigns.push({ id: l.id, sign: sgn });
     }
+    this.saleSign = this.saleSigns[0]?.sign || null;
     // Pista: de terra antes da compra, asfalto depois.
     if (this.trackGroup) this.scene.remove(this.trackGroup);
     if (state.track) {
@@ -306,7 +344,7 @@ export class World {
   }
 
   clampTarget() {
-    const b = this.bounds || { x0: -34, x1: MAX_LOT_W + 34, z0: -44, z1: LOT_D + 30 };
+    const b = this.bounds || { x0: -50, x1: MAX_LOT_W + 50, z0: -56, z1: LOT_D + 36 };
     this.target.x = Math.max(b.x0, Math.min(b.x1, this.target.x));
     this.target.z = Math.max(b.z0, Math.min(b.z1, this.target.z));
   }
@@ -363,7 +401,7 @@ export class World {
   pick(sx, sy) {
     this.raycaster.setFromCamera(this.ndc(sx, sy), this.camera);
     const roots = [...this.buildViews.values()].map((v) => v.g).concat([...this.carViews.values()].map((v) => v.g));
-    if (this.saleSign) roots.push(this.saleSign);
+    for (const ss of this.saleSigns || []) roots.push(ss.sign);
     if (this.trackSign) roots.push(this.trackSign);
     const hits = this.raycaster.intersectObjects(roots, true);
     for (const h of hits) {
@@ -465,6 +503,18 @@ export class World {
     }
   }
 
+  // Animação de terreno novo: o piso sobe do chão, poeira, confete e brilho.
+  unlockParcel(id) {
+    const slab = this.lotGroup.children.find((o) => o.userData.parcel === id);
+    if (!slab) return;
+    this.lotAnim = { slab, t: 0 };
+    slab.position.y = -0.9;
+    const c = slab.position.clone().setY(0.4);
+    const w = slab.geometry.parameters.width, d = slab.geometry.parameters.depth;
+    for (let i = 0; i < 10; i++) this.burst(c.clone().add(new THREE.Vector3((Math.random() - 0.5) * w, 0, (Math.random() - 0.5) * d)), '#e9dcc4', 6, 3, 0.3, 1.2);
+    setTimeout(() => this.confetti(c, 80), 450);
+  }
+
   // ---------- modo construção ----------
   setGhost(state, type, x, z, moveId = null) {
     if (!this.ghost || this.ghost.type !== type) {
@@ -548,6 +598,8 @@ export class World {
       const half = (b.type === 'posto' ? TILE + 1 : d.w * TILE - 0.5) / 2 + 1.3; // folga para o carro sair do box manobrando
       ways.push([cx - half, cx + half]);
     }
+    // Nunca na boca das ruas que cruzam a avenida (rua lateral e transversal).
+    for (const jx of JUNCTIONS) ways.push([jx - 4.2, jx + 4.2]);
     const sig = state.lotW + '|' + ways.map((w) => w[0].toFixed(2)).join(',');
     if (sig === this.slotSig) return;
     this.slotSig = sig;
@@ -900,6 +952,13 @@ export class World {
       if (moved) { this.clampTarget(); this.updateCamera(); }
     }
 
+    if (this.lotAnim) {
+      const a = this.lotAnim;
+      a.t = Math.min(1, a.t + dt / 0.9);
+      a.slab.position.y = -0.9 + 0.82 * easeOutBack(a.t);
+      if (a.t >= 1) this.lotAnim = null;
+    }
+
     const byId = new Map(state.buildings.map((b) => [b.id, b]));
     for (const [id, v] of this.buildViews) {
       const b = byId.get(id);
@@ -1160,7 +1219,8 @@ World.prototype.updateStaff = function (dt) {
     if (sv.wait > 0) { sv.wait -= dt; animatePerson(p, this.time + sv.ph, 'idle'); continue; }
     if (!sv.goal) {
       for (let k = 0; k < 10; k++) {
-        const x = Math.floor(Math.random() * st.lotW), z = Math.floor(Math.random() * GRID_H);
+        const bb = lotBounds(st);
+        const x = bb.x0 + Math.floor(Math.random() * (bb.x1 - bb.x0)), z = bb.z0 + Math.floor(Math.random() * (bb.z1 - bb.z0));
         // Só para em lugar livre (fora das entradas dos boxes, onde os carros passam).
         if (canPlace(st, 'arvore', x, z)) { sv.goal = { x: (x + 0.5) * TILE, z: (z + 0.5) * TILE }; break; }
       }
@@ -1184,7 +1244,9 @@ World.prototype.enterVisit = function (snap) {
   this.exitVisit();
   this.visit = new THREE.Group();
   const lotW = Math.max(16, Math.min(MAX_W, snap.lotW || 16));
-  this.buildLotInto(this.visit, lotW);
+  // Terrenos do amigo (saves antigos só mandam a largura: vira os terrenos da direita).
+  const land = Array.isArray(snap.land) ? snap.land : LAND.filter((l) => l.id.startsWith('leste') && l.x + l.w <= lotW).map((l) => l.id);
+  this.buildLotInto(this.visit, parcelsOf(land));
   for (const b of snap.buildings || []) {
     if (!BUILDINGS[b.type]) continue;
     const g = buildBuilding(b.type, Math.max(1, Math.min(5, b.level || 1)), snap.uniform || null);

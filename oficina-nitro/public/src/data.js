@@ -5,12 +5,21 @@ export const TILE = 2; // tamanho de um quadrado do terreno em unidades 3D
 export const GRID_H = 9;
 export const BASE_W = 16;
 
-// Terrenos vizinhos que podem ser comprados (expandem o lote para a direita).
+// Lote inicial (em quadrados da grade: x para a direita, z para a frente; a avenida fica em z = GRID_H).
+export const BASE_LOT = { id: 'base', x: 0, z: 0, w: 16, h: 9 };
+
+// Terrenos que podem ser comprados, em várias direções. Cada um precisa de nível, moedas
+// e de encostar em terreno que você já tem ('needs' = todos estes antes).
+// Para crescer o mapa no futuro, é só acrescentar um terreno aqui (e uma rua, se precisar, em roads.js).
 export const LAND = [
-  { id: 'leste1', name: 'Terreno vizinho', cols: 6, cost: 1200, lvl: 3 },
-  { id: 'leste2', name: 'Terreno da esquina', cols: 6, cost: 4500, lvl: 6 },
+  { id: 'leste1', name: 'Terreno vizinho', x: 16, z: 0, w: 6, h: 9, cols: 6, cost: 1200, lvl: 3, needs: [], desc: 'Mais 6 colunas de frente para a avenida.' },
+  { id: 'leste2', name: 'Terreno da esquina', x: 22, z: 0, w: 6, h: 9, cols: 6, cost: 4500, lvl: 6, needs: ['leste1'], desc: 'A esquina inteira até a rua transversal.' },
+  { id: 'fundos1', name: 'Quintal dos fundos', x: 0, z: -4, w: 14, h: 4, cost: 6500, lvl: 7, needs: [], desc: 'Aumenta a oficina para trás, de frente para a Rua dos Fundos.' },
+  { id: 'oeste1', name: 'Terreno do parque', x: -7, z: 0, w: 7, h: 9, cost: 8000, lvl: 8, needs: [], desc: 'Do lado esquerdo, colado na rua lateral e no parque.' },
+  { id: 'fundos2', name: 'Galpão dos fundos', x: 14, z: -4, w: 14, h: 4, cost: 11000, lvl: 9, needs: ['fundos1', 'leste2'], desc: 'O resto dos fundos, atrás dos terrenos da direita.' },
+  { id: 'oeste2', name: 'Cantinho do parque', x: -7, z: -4, w: 7, h: 4, cost: 13000, lvl: 10, needs: ['oeste1', 'fundos1'], desc: 'Fecha o quadrado: o canto entre o parque e os fundos.' },
 ];
-export const MAX_W = BASE_W + LAND.reduce((a, l) => a + l.cols, 0);
+export const MAX_W = 28; // até onde o lote pode ir para a direita (em quadrados)
 export const TRACK = { name: 'Pista de Corrida', cost: 6000, lvl: 6 };
 
 export function xpNeed(level) {

@@ -3,8 +3,7 @@
 import {
   BUILDINGS, PARTS, CAR_TYPES, JOBS, SERVICE_OF, DEFAULT_PART, GRID_H, BASE_W, LAND, TRACK,
   BUILDING_MAX_LEVEL, UPGRADE_TIME, PERF, PART_COST, RACE_TIERS, RIVAL_NAMES, xpNeed, limitAt, part, carType,
-  RARITY, RARE_PARTS, CRATES, CHARACTERS, EVENTS, EVENT_MILESTONES, STAFF_ROLES, STAFF_NAMES, STAFF_LEVEL_MULT, TEAM_SIZE,
-} from './data.js';
+  RARITY, RARE_PARTS, CRATES, CHARACTERS, EVENTS, EVENT_MILESTONES, STAFF_ROLES, STAFF_NAMES, STAFF_LEVEL_MULT, TEAM_SIZE, BASE_LOT } from './data.js';
 
 export const QUEUE_SLOTS = 5;
 export const GARAGE_MAX = 6;
@@ -18,7 +17,7 @@ function freshStats() {
 
 export function newState() {
   const s = {
-    v: 2, coins: 250, xp: 0, level: 1, seq: 1, lotW: BASE_W, land: [], track: false,
+    v: 3, coins: 250, xp: 0, level: 1, seq: 1, lotW: BASE_W, land: [], track: false,
     buildings: [], queue: [], spawnIn: 1.5, missions: [], garage: [], projects: [], auction: null, trophies: 0,
     stats: freshStats(), daily: { last: null, streak: 0 }, lastSeen: Date.now(),
     friends: {}, rare: {}, crates: { bronze: 0, prata: 0, ouro: 0 }, event: null, staff: [], uniform: '#2f7bea',
@@ -41,8 +40,44 @@ export function migrate(s) {
   for (const k of ['lotW', 'land', 'track', 'garage', 'projects', 'auction', 'trophies', 'friends', 'rare', 'crates', 'event', 'staff', 'uniform', 'weather', 'towCall', 'towIn', 'contest', 'bonusFame', 'name']) if (s[k] === undefined) s[k] = d[k];
   s.stats = { ...freshStats(), ...s.stats };
   for (const b of s.buildings) if (b.build === undefined) b.build = null;
-  s.v = 2;
+  // v3: terrenos em várias direções. Os ids antigos (leste1, leste2) continuam valendo;
+  // só some algum id desconhecido e a largura é recalculada a partir dos terrenos.
+  if (!Array.isArray(s.land)) s.land = [];
+  s.land = s.land.filter((id) => LAND.some((l) => l.id === id));
+  s.lotW = lotBounds(s).x1;
+  s.v = 3;
   return s;
+}
+
+// ---------- terrenos ----------
+export function parcelsOf(landIds) {
+  return [BASE_LOT, ...LAND.filter((l) => landIds.includes(l.id))];
+}
+
+const tileCache = { key: null, set: null };
+// Todos os quadrados que são seus (lote inicial + terrenos comprados).
+export function ownedTiles(s) {
+  const key = s.land.join(',');
+  if (tileCache.key === key) return tileCache.set;
+  const set = new Set();
+  for (const p of parcelsOf(s.land)) for (let x = p.x; x < p.x + p.w; x++) for (let z = p.z; z < p.z + p.h; z++) set.add(`${x},${z}`);
+  tileCache.key = key;
+  tileCache.set = set;
+  return set;
+}
+
+// Retângulo que envolve tudo que é seu (x1 e z1 exclusivos).
+export function lotBounds(s) {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const p of parcelsOf(s.land || [])) { x0 = Math.min(x0, p.x); z0 = Math.min(z0, p.z); x1 = Math.max(x1, p.x + p.w); z1 = Math.max(z1, p.z + p.h); }
+  return { x0, z0, x1, z1 };
+}
+
+// Situação de um terreno: 'owned' (seu), 'open' (pode comprar), 'level' (falta nível), 'hidden' (ainda não encosta no seu).
+export function landStatus(s, l) {
+  if (s.land.includes(l.id)) return 'owned';
+  if (!l.needs.every((id) => s.land.includes(id))) return 'hidden';
+  return s.level >= l.lvl ? 'open' : 'level';
 }
 
 export const count = (s, type) => s.buildings.filter((b) => b.type === type).length;
@@ -374,12 +409,13 @@ export function laneTiles(s, ignoreId) {
 
 export function canPlace(s, type, x, z, ignoreId = null) {
   const d = BUILDINGS[type];
-  if (x < 0 || z < 0 || x + d.w > s.lotW || z + d.d > GRID_H) return false;
+  const own = ownedTiles(s);
+  if (z + d.d > GRID_H) return false;
   const occupied = new Set();
   for (const b of s.buildings) if (b.id !== ignoreId) for (const t of footprint(b.type, b.x, b.z)) occupied.add(t);
   const lanes = laneTiles(s, ignoreId);
-  for (const t of footprint(type, x, z)) if (occupied.has(t) || lanes.has(t)) return false;
-  for (const t of lane(type, x, z)) if (occupied.has(t)) return false;
+  for (const t of footprint(type, x, z)) if (!own.has(t) || occupied.has(t) || lanes.has(t)) return false;
+  for (const t of lane(type, x, z)) if (!own.has(t) || occupied.has(t)) return false;
   return true;
 }
 
@@ -425,18 +461,22 @@ export function upgrade(s, bid) {
 }
 
 // ---------- terrenos e pista ----------
+// Próximo terreno à venda (o de menor nível entre os que já encostam no seu).
 export function nextLand(s) {
-  return LAND[s.land.length] || null;
+  return LAND.filter((l) => { const st = landStatus(s, l); return st === 'open' || st === 'level'; }).sort((a, b) => a.lvl - b.lvl)[0] || null;
 }
 
-export function buyLand(s) {
-  const l = nextLand(s);
+export function buyLand(s, id = null) {
+  const l = id ? LAND.find((q) => q.id === id) : nextLand(s);
   if (!l) return { ok: false, reason: 'max' };
+  const st = landStatus(s, l);
+  if (st === 'owned') return { ok: false, reason: 'owned' };
+  if (st === 'hidden') return { ok: false, reason: 'needs', needs: l.needs };
   if (s.level < l.lvl) return { ok: false, reason: 'level', need: l.lvl };
   if (s.coins < l.cost) return { ok: false, reason: 'coins' };
   s.coins -= l.cost;
   s.land.push(l.id);
-  s.lotW += l.cols;
+  s.lotW = lotBounds(s).x1;
   track(s, 'build', 1);
   return { ok: true, land: l };
 }
