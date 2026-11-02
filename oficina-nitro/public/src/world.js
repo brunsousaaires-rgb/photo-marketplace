@@ -23,6 +23,8 @@ const SLOT_GAP = 5.6; // distância mínima entre centros de vagas (espaço para
 let SERIAL = 0; // ordem de chegada: quem chegou antes tem a preferência
 const CAM_DIR = new THREE.Vector3(1, 1.25, 1).normalize();
 const DAY_LEN = 360; // segundos para um dia completo
+const ZOOM_MIN = 0.42, ZOOM_MAX = 2.8;
+const HOME = new THREE.Vector3(14.5, 0, LOT_D / 2 - 1.5); // onde a câmera começa (a oficina)
 export const TRACK_PATH = makeTrackPath(MAX_LOT_W / 2, -24, 15, 9);
 
 export const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
@@ -64,7 +66,7 @@ export class World {
     this.skyDusk = new THREE.Color('#f7a46b');
     this.skyRain = new THREE.Color('#7d8ea3');
     this.scene.background = this.skyDay.clone();
-    this.target = new THREE.Vector3(14.5, 0, LOT_D / 2 - 1.5);
+    this.target = HOME.clone();
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
     this.viewH = 30;
     this.zoom = 1;
@@ -234,6 +236,7 @@ export class World {
 
   resize() {
     const w = innerWidth, h = innerHeight;
+    this.canvasRect = null;
     this.renderer.setSize(w, h, false);
     this.aspect = w / h;
     this.viewH = Math.min(46, Math.max(31, 34 / this.aspect));
@@ -252,30 +255,77 @@ export class World {
   }
 
   // ---------- câmera ----------
+  // Tela -> coordenadas normalizadas, usando o retângulo real do canvas (vale com zoom, arraste e iframe).
+  ndc(sx, sy) {
+    const r = this.canvas.getBoundingClientRect();
+    return new THREE.Vector2(((sx - r.left) / (r.width || innerWidth)) * 2 - 1, -((sy - r.top) / (r.height || innerHeight)) * 2 + 1);
+  }
+
+  // Ponto do chão (y = 0) embaixo de um ponto da tela.
   groundAt(sx, sy) {
-    const ndc = new THREE.Vector2((sx / innerWidth) * 2 - 1, -(sy / innerHeight) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
+    this.raycaster.setFromCamera(this.ndc(sx, sy), this.camera);
     const p = new THREE.Vector3();
     return this.raycaster.ray.intersectPlane(this.ground, p) ? p : null;
   }
 
+  // Arrastar: o ponto do chão embaixo do dedo acompanha o dedo. Guarda a velocidade para a inércia.
   pan(fromX, fromY, toX, toY) {
     if (this.focusTween || this.followCam) return;
     const a = this.groundAt(fromX, fromY), b = this.groundAt(toX, toY);
     if (!a || !b) return;
-    this.target.add(a.sub(b));
+    const d = a.sub(b);
+    this.target.add(d);
+    const now = performance.now(), dt = Math.max(0.008, (now - (this.lastPan || now - 16)) / 1000);
+    this.lastPan = now;
+    const v = d.multiplyScalar(1 / dt);
+    this.panVel = this.panVel ? this.panVel.lerp(v, 0.5) : v;
+    this.inertia = null;
     this.clampTarget();
     this.updateCamera();
   }
 
-  clampTarget() {
-    this.target.x = Math.max(-34, Math.min(MAX_LOT_W + 34, this.target.x));
-    this.target.z = Math.max(-44, Math.min(LOT_D + 30, this.target.z));
+  // Soltou o dedo: continua deslizando e vai freando.
+  release() {
+    const v = this.panVel;
+    this.panVel = null;
+    if (!v || performance.now() - (this.lastPan || 0) > 90) return;
+    const sp = v.length();
+    if (sp < 2) return;
+    this.inertia = v.multiplyScalar(Math.min(1, 60 / sp));
   }
 
-  zoomBy(f) {
+  stopMotion() {
+    this.inertia = null;
+    this.panVel = null;
+  }
+
+  // Limites do mapa (aumentam quando compra terreno).
+  setBounds(b) {
+    this.bounds = b;
+    this.clampTarget();
+  }
+
+  clampTarget() {
+    const b = this.bounds || { x0: -34, x1: MAX_LOT_W + 34, z0: -44, z1: LOT_D + 30 };
+    this.target.x = Math.max(b.x0, Math.min(b.x1, this.target.x));
+    this.target.z = Math.max(b.z0, Math.min(b.z1, this.target.z));
+  }
+
+  // Zoom mantendo parado o ponto do mundo que está embaixo do cursor/dos dedos.
+  zoomBy(f, sx = null, sy = null) {
     if (this.focusTween || this.followCam) return;
-    this.zoomTarget = Math.max(0.5, Math.min(2.6, this.zoomTarget * f));
+    this.zoomTarget = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoomTarget * f));
+    this.zoomAnchor = sx == null ? null : { x: sx, y: sy };
+  }
+
+  // Volta para a oficina (botão de centralizar).
+  home() {
+    this.stopMotion();
+    this.panTo(HOME.clone(), 1);
+  }
+
+  awayFromHome() {
+    return this.target.distanceTo(HOME) > 6 || Math.abs(this.zoomTarget - 1) > 0.35;
   }
 
   // offset: sobe o alvo na tela (abre espaço embaixo); side: empurra o alvo para a esquerda da tela.
@@ -306,12 +356,12 @@ export class World {
 
   toScreen(v) {
     const p = v.clone().project(this.camera);
-    return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight, visible: p.z < 1 && p.x > -1.2 && p.x < 1.2 && p.y > -1.2 && p.y < 1.2 };
+    const r = this.canvasRect || (this.canvasRect = this.canvas.getBoundingClientRect());
+    return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height, visible: p.z < 1 && p.x > -1.2 && p.x < 1.2 && p.y > -1.2 && p.y < 1.2 };
   }
 
   pick(sx, sy) {
-    const ndc = new THREE.Vector2((sx / innerWidth) * 2 - 1, -(sy / innerHeight) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
+    this.raycaster.setFromCamera(this.ndc(sx, sy), this.camera);
     const roots = [...this.buildViews.values()].map((v) => v.g).concat([...this.carViews.values()].map((v) => v.g));
     if (this.saleSign) roots.push(this.saleSign);
     if (this.trackSign) roots.push(this.trackSign);
@@ -828,9 +878,26 @@ export class World {
       this.zoom = this.zoomTarget = f.z0 + (f.z1 - f.z0) * k;
       if (f.t >= 1) this.focusTween = null;
       this.updateCamera();
-    } else if (Math.abs(this.zoom - this.zoomTarget) > 0.001) {
-      this.zoom += (this.zoomTarget - this.zoom) * Math.min(1, dt * 12);
-      this.updateCamera();
+    } else {
+      let moved = false;
+      if (Math.abs(this.zoom - this.zoomTarget) > 0.0005) {
+        const a = this.zoomAnchor;
+        const before = a ? this.groundAt(a.x, a.y) : null;
+        this.zoom += (this.zoomTarget - this.zoom) * Math.min(1, dt * 12);
+        this.updateCamera();
+        if (before) {
+          const after = this.groundAt(a.x, a.y);
+          if (after) this.target.add(before.sub(after));
+        }
+        moved = true;
+      } else this.zoomAnchor = null;
+      if (this.inertia) {
+        this.target.addScaledVector(this.inertia, dt);
+        this.inertia.multiplyScalar(Math.pow(0.04, dt)); // freia suave
+        if (this.inertia.lengthSq() < 0.05) this.inertia = null;
+        moved = true;
+      }
+      if (moved) { this.clampTarget(); this.updateCamera(); }
     }
 
     const byId = new Map(state.buildings.map((b) => [b.id, b]));

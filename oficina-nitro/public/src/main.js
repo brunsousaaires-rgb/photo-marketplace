@@ -901,15 +901,22 @@ $('#famePill').addEventListener('click', () => toast('⭐ Fama: decore, melhore 
 // ---------- toque / arrastar / zoom ----------
 const canvas = $('#scene');
 const pointers = new Map();
-let moved = 0, pinch = null;
+let moved = 0, pinch = null, mid = null;
+const canExplore = () => mode !== 'custom' && mode !== 'race' && mode !== 'tow';
+
+// iPhone: impede o zoom da página inteira com os dedos (o zoom é só do mapa).
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.target === canvas) e.preventDefault(); }, { passive: false });
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  world.stopMotion();
   if (pointers.size === 1) moved = 0;
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     pinch = Math.hypot(a.x - b.x, a.y - b.y);
+    mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -924,14 +931,20 @@ canvas.addEventListener('pointermove', (e) => {
     p.x = e.clientX; p.y = e.clientY;
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinch && mode !== 'custom' && mode !== 'race') world.zoomBy(d / pinch);
+    const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    // Pinça: zoom no ponto entre os dedos e arraste com os dois dedos ao mesmo tempo.
+    if (pinch && canExplore()) {
+      if (mid) world.pan(mid.x, mid.y, m.x, m.y);
+      world.zoomBy(d / pinch, m.x, m.y);
+    }
     pinch = d;
+    mid = m;
     moved = 99;
     return;
   }
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   moved += Math.hypot(dx, dy);
-  if (moved > 8 && mode !== 'custom' && mode !== 'race') {
+  if (moved > 8 && canExplore()) {
     if (mode === 'place' && e.pointerType !== 'mouse') {
       const t = world.tileAt(e.clientX, e.clientY, placing.type);
       if (t && (t.x !== placing.x || t.z !== placing.z)) movePlacement(t.x, t.z);
@@ -942,12 +955,18 @@ canvas.addEventListener('pointermove', (e) => {
 const endPointer = (e) => {
   const was = pointers.has(e.pointerId);
   pointers.delete(e.pointerId);
-  if (pointers.size < 2) pinch = null;
+  if (pointers.size < 2) { pinch = null; mid = null; }
   if (was && !pointers.size && moved < 8) onTap(e.clientX, e.clientY);
+  else if (was && !pointers.size && mode !== 'place' && canExplore() && moved < 99) world.release();
+  // Sobrou um dedo depois da pinça: recomeça o arraste dali, sem pulo.
+  if (pointers.size === 1) moved = 99;
 };
 canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); pinch = null; });
-canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (mode !== 'custom' && mode !== 'race') world.zoomBy(Math.pow(1.0018, -e.deltaY)); }, { passive: false });
+canvas.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); pinch = null; mid = null; });
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (canExplore()) world.zoomBy(Math.pow(1.0018, -e.deltaY), e.clientX, e.clientY); }, { passive: false });
+// Botão de centralizar na oficina (aparece quando a câmera se afasta).
+$('#btnHome').innerHTML = `<span class="ico">${icon('garagem')}</span>`;
+$('#btnHome').addEventListener('click', () => { sfx.play('click'); world.home(); });
 
 function onTap(x, y) {
   if (mode === 'custom' || mode === 'race' || mode === 'tow' || mode === 'visit') return;
@@ -1086,6 +1105,8 @@ function step(now) {
   if (Math.abs(world.night - lastNight) > 0.03) { lastNight = world.night; sfx.setNight(world.night); }
   updateBubbles();
   updateHud(dt);
+  const showHome = mode === 'play' && world.awayFromHome();
+  if ($('#btnHome').hidden === showHome) $('#btnHome').hidden = !showHome;
   tipT -= dt;
   if (tipT <= 0) { tipT = 0.3; updateTip(); }
   saveT -= dt;
@@ -1139,7 +1160,7 @@ if (daily) {
 // Depuração no console.
 X.afterBoot(ctx);
 window.oficina = {
-  get state() { return state; }, get race() { return race; }, world, L, ctx, startTow, enterVisit, exitVisit, assignCustomer, openCustom, collectJob, speedUp, openGarage: () => openGarage(ctx), startRace,
+  get state() { return state; }, get race() { return race; }, world, BUILDINGS, L, ctx, startTow, enterVisit, exitVisit, assignCustomer, openCustom, collectJob, speedUp, openGarage: () => openGarage(ctx), startRace,
   reset() { localStorage.removeItem(SAVE_KEY); location.reload(); },
   advance(sec) { step(last + sec * 1000); }, // usado nos testes automáticos
 };

@@ -552,3 +552,12 @@ button.chip { cursor: pointer; }
 @media (max-width: 400px) {
   .tab { font-size: 11px; letter-spacing: -.2px; }
 }
+
+/* Câmera livre: botão de voltar para a oficina e nada de rolagem/zoom da página. */
+html, body { overscroll-behavior: none; }
+canvas#scene { touch-action: none; }
+.homebtn { position: absolute; right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(112px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 50%; border: 4px solid var(--ink); background: radial-gradient(circle at 40% 30%, #ffffff, #dfe9f7); box-shadow: inset 0 -5px 0 #b8c6dc, 0 4px 0 var(--ink); display: grid; place-items: center; padding: 0; animation: popin .3s cubic-bezier(.2,1.8,.4,1); }
+.homebtn .ico .svgi { width: 32px; height: 32px; }
+.homebtn:active { transform: translateY(3px); box-shadow: inset 0 -3px 0 #b8c6dc, 0 1px 0 var(--ink); }
+@media (max-width: 600px) { .homebtn { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(98px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; } }
+@media (max-height: 520px) and (orientation: landscape) { .homebtn { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; } }
