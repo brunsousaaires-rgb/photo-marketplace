@@ -88,6 +88,24 @@ export class Sfx {
     return this.musicOn;
   }
 
+  // Chuva: ruído contínuo filtrado, com volume pela intensidade.
+  setRain(k) {
+    if (!this.ctx) return;
+    if (!this.rainSrc && k > 0.01) {
+      const c = this.ctx;
+      this.rainSrc = c.createBufferSource();
+      this.rainSrc.buffer = this.noiseBuf;
+      this.rainSrc.loop = true;
+      const f = c.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 2200;
+      this.rainGain = c.createGain();
+      this.rainGain.gain.value = 0;
+      this.rainSrc.connect(f).connect(this.rainGain).connect(this.out);
+      this.rainSrc.start();
+    }
+    if (this.rainGain) this.rainGain.gain.setTargetAtTime(this.muted ? 0 : k * 0.22, this.ctx.currentTime, 0.4);
+  }
+
   setNight(n) {
     this.night = n;
     if (this.mFilter) this.mFilter.frequency.setTargetAtTime(9000 - n * 7000, this.ctx.currentTime, 0.5);
@@ -282,6 +300,10 @@ export class Sfx {
       case 'engine': this.tone(60, 1.2, { type: 'sawtooth', v: 0.08, f2: 220 }); break;
       case 'nitro': this.noise(0.6, { v: 0.25, freq: 900, q: 0.3 }); this.tone(200, 0.6, { type: 'sawtooth', v: 0.06, f2: 600 }); break;
       case 'win': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.2, { type: 'square', v: 0.08, delay: i * 0.11 })); break;
+      case 'phone': for (let i = 0; i < 2; i++) { this.tone(1300, 0.12, { type: 'square', v: 0.05, delay: i * 0.3 }); this.tone(1650, 0.12, { type: 'square', v: 0.05, delay: i * 0.3 + 0.12 }); } break;
+      case 'crate': this.noise(0.2, { v: 0.15, freq: 900, q: 1 }); [659, 784, 988, 1319, 1568].forEach((f, i) => this.tone(f, 0.25, { type: 'triangle', v: 0.13, delay: 0.25 + i * 0.07 })); break;
+      case 'rare': [523, 784, 1047, 1568, 2093].forEach((f, i) => this.tone(f, 0.35, { type: 'sine', v: 0.12, delay: i * 0.1 })); this.noise(0.8, { v: 0.05, freq: 9000, delay: 0.4 }); break;
+      case 'friend': [784, 988, 1175].forEach((f, i) => this.tone(f, 0.18, { type: 'sine', v: 0.1, delay: i * 0.08 })); break;
       case 'lose': [392, 349, 330, 262].forEach((f, i) => this.tone(f, 0.25, { type: 'triangle', v: 0.12, delay: i * 0.15 })); break;
     }
   }

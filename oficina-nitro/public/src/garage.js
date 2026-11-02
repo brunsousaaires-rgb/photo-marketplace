@@ -1,6 +1,6 @@
 // Garagem: coleção de carros, leilão de sucatas, preparação e inscrição nas corridas.
 import * as L from './logic.js';
-import { PARTS, PART_TABS, PART_COST, PERF, RACE_TIERS, TRACK, carType, part } from './data.js';
+import { PARTS, PART_TABS, PART_COST, PERF, RACE_TIERS, TRACK, RARITY, carType, part } from './data.js';
 import { icon } from './icons.js';
 
 const colorName = (id) => (part('color', id) || {}).name || '';
@@ -133,13 +133,13 @@ export function openGarage(ctx, opts = {}) {
     let opts = '';
     if (sub === 'visual') {
       const tabs = PART_TABS.map((t) => `<button class="tab ${partTab === t.id ? 'on' : ''}" data-ptab="${t.id}">${icon(t.icon)}${t.name}</button>`).join('');
-      const list = PARTS[partTab].map((p) => {
-        const locked = p.lvl > s.level;
+      const list = PARTS[partTab].filter((p) => !p.rare || L.owns(s, partTab, p.id)).map((p) => {
+        const locked = !L.partAvailable(s, partTab, p.id);
         const on = car[partTab] === p.id;
         const vis = partTab === 'color'
-          ? `<span class="swatch" style="background:${p.hex}"></span>`
+          ? `<span class="swatch" style="background:${p.iris ? 'conic-gradient(#7a5cff,#36d0ff,#4dff9a,#ffd23d,#ff4fd8,#7a5cff)' : p.chrome ? 'linear-gradient(135deg,#fff,#9aa3b2 45%,#fff 55%,#6b7180)' : p.hex}"></span>`
           : `<img class="pimg" src="${ctx.thumbs.part(partTab, p.id)}" alt="">`;
-        return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-style="${p.id}">${vis}<span>${p.name}</span><span class="price">${locked ? `🔒 Nv ${p.lvl}` : on ? '✔ Atual' : coin(PART_COST[partTab])}</span></button>`;
+        return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${p.rare ? `rare r-${p.rare}` : ''}" data-style="${p.id}">${vis}<span>${p.name}</span><span class="price">${locked ? `🔒 Nv ${p.lvl}` : on ? '✔ Atual' : coin(PART_COST[partTab])}</span></button>`;
       }).join('');
       opts = `<div id="tabs" class="ptabs">${tabs}</div><div class="optrow">${list}</div>`;
     } else {
@@ -159,6 +159,7 @@ export function openGarage(ctx, opts = {}) {
       ${opts}
       <div class="row">
         <button class="btn gray" data-back>← Voltar</button>
+        <button class="btn blue" data-photo>${icon('foto', 'bico')} Foto</button>
         <button class="btn blue" data-goRace>${icon('corrida', 'bico')} Correr</button>
         <button class="btn yellow" data-sell>Vender ${coin(L.carValue(car))}</button>
       </div>`;
@@ -172,7 +173,7 @@ export function openGarage(ctx, opts = {}) {
     box.querySelectorAll('[data-ptab]').forEach((b) => b.onclick = () => { sfx.play('click'); partTab = b.dataset.ptab; ctx.rerender(render); });
     box.querySelectorAll('[data-style]').forEach((b) => b.onclick = () => {
       const r = L.restyle(s, car.id, partTab, b.dataset.style);
-      if (!r.ok) { if (r.reason === 'coins') ctx.toast('Moedas insuficientes'); if (r.reason === 'level') ctx.toast(`Libera no nível ${r.need}`); if (r.reason !== 'same') sfx.play('error'); return; }
+      if (!r.ok) { if (r.reason === 'coins') ctx.toast('Moedas insuficientes'); if (r.reason === 'level') ctx.toast(`Libera no nível ${r.need}`); if (r.reason === 'rare') ctx.toast('Peça rara: ganhe em caixas'); if (r.reason !== 'same') sfx.play('error'); return; }
       sfx.play(partTab === 'color' ? 'spray' : 'pop');
       ctx.afterChange();
       ctx.rerender(render);
@@ -197,6 +198,7 @@ export function openGarage(ctx, opts = {}) {
       ctx.world.sync(s);
       ctx.rerender(render);
     });
+    box.querySelector('[data-photo]')?.addEventListener('click', () => { sfx.play('click'); ctx.closeModal(); ctx.openPhoto(car, carName(car)); });
     box.querySelector('[data-goRace]')?.addEventListener('click', () => { sfx.play('click'); raceCar = car.id; carId = null; tab = 'corridas'; ctx.rerender(render); });
     box.querySelectorAll('[data-restore]').forEach((b) => b.onclick = () => {
       const r = L.startRestore(s, Number(b.dataset.restore));

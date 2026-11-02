@@ -14,6 +14,7 @@ export function mat(color, o = {}) {
       emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 1, flatShading: !!o.flat,
       transparent: o.t != null, opacity: o.t ?? 1,
     });
+    m.envMapIntensity = (o.m ?? 0) > 0.4 ? 1 : 0.12;
     matCache.set(key, m);
   }
   return m;
@@ -151,6 +152,9 @@ export const WHEELS = {
   esportiva: { r: 0.38, tw: 0.32, rim: '#ff3b3b', rimR: 0.68, rm: 0.2, spokes: 5 },
   cromada: { r: 0.39, tw: 0.32, rim: '#eef2fa', rimR: 0.72, rm: 1, rr: 0.12, spokes: 8 },
   offroad: { r: 0.5, tw: 0.42, rim: '#ffcc33', rimR: 0.5, rm: 0.2, tread: true },
+  raio: { r: 0.39, tw: 0.32, rim: '#ffcc33', rimR: 0.74, rm: 1, rr: 0.18, spokes: 6, spokeCol: '#ffd96a', spokeMetal: true },
+  neonrim: { r: 0.38, tw: 0.32, rim: '#1d2b4f', rimR: 0.7, rm: 0.3, glowRim: '#35f0ff' },
+  turbina: { r: 0.4, tw: 0.34, rim: '#f4f6fa', rimR: 0.76, rm: 0.6, rr: 0.2, fan: 10 },
 };
 
 const LIGHT_COLORS = new Set(['branco', 'amarelo', 'prata', 'dourado', 'ciano']);
@@ -176,9 +180,24 @@ export function buildWheel(def) {
   hub.rotation.z = Math.PI / 2;
   g.add(hub);
   for (let i = 0; i < (def.spokes || 0); i++) {
-    const sp = mesh(box(def.tw + 0.05, def.r * def.rimR * 1.75, 0.06), mat(def.spokes > 5 ? '#9aa3b2' : '#2b2d36', { r: 0.4, m: def.spokes > 5 ? 0.9 : 0 }));
+    const col = def.spokeCol || (def.spokes > 5 ? '#9aa3b2' : '#2b2d36');
+    const sp = mesh(box(def.tw + 0.05, def.r * def.rimR * 1.75, 0.06), mat(col, { r: 0.3, m: def.spokeMetal || def.spokes > 5 ? 0.9 : 0 }));
     sp.rotation.x = (i / def.spokes) * Math.PI;
     g.add(sp);
+  }
+  if (def.glowRim) {
+    for (const sx of [-1, 1]) {
+      const ring = mesh(torus(def.r * 0.62, 0.035, 6, 24), glow(def.glowRim, def.glowRim, def.glowRim, 1.6, 2.6), sx * (def.tw / 2 + 0.02), 0, 0);
+      ring.rotation.y = Math.PI / 2;
+      ring.castShadow = false;
+      g.add(ring);
+    }
+  }
+  for (let i = 0; i < (def.fan || 0); i++) {
+    const a = (i / def.fan) * Math.PI * 2;
+    const bl = mesh(box(def.tw + 0.06, def.r * 0.5, 0.05), mat('#9aa3b2', { m: 0.9, r: 0.25 }), 0, Math.cos(a) * def.r * 0.33, Math.sin(a) * def.r * 0.33);
+    bl.rotation.x = -a + 0.5;
+    g.add(bl);
   }
   return g;
 }
@@ -187,7 +206,60 @@ export function buildWheelModel(id) {
   return buildWheel(WHEELS[id] || WHEELS.padrao);
 }
 
-export function buildCar(spec, { driver = true } = {}) {
+function paintMaterial(col) {
+  if (col.iris) {
+    const m = new THREE.MeshPhysicalMaterial({ color: col.hex, roughness: 0.18, metalness: 0.65, iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [200, 900], clearcoat: 1 });
+    m.envMapIntensity = 1.4;
+    return m;
+  }
+  if (col.pearl) {
+    const m = new THREE.MeshPhysicalMaterial({ color: col.hex, roughness: 0.25, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 1, sheenColor: new THREE.Color('#ffd9f0'), sheenRoughness: 0.4 });
+    m.envMapIntensity = 0.8;
+    return m;
+  }
+  const m = new THREE.MeshStandardMaterial({
+    color: col.hex,
+    roughness: col.chrome ? 0.06 : col.matte ? 0.95 : col.metal ? 0.22 : 0.3,
+    metalness: col.chrome ? 1 : col.matte ? 0 : col.metal ? 0.75 : 0.08,
+  });
+  m.envMapIntensity = col.chrome ? 1.6 : col.metal ? 1 : col.matte ? 0.05 : 0.35;
+  return m;
+}
+
+const decalTexCache = new Map();
+function decalTexture(kind, colorHex) {
+  const key = kind + colorHex;
+  if (decalTexCache.has(key)) return decalTexCache.get(key);
+  const t = canvasTex(256, 64, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    if (kind === 'chamas') {
+      const grd = g.createLinearGradient(0, 0, w, 0);
+      grd.addColorStop(0, '#ffe14a'); grd.addColorStop(0.5, '#ff8a2a'); grd.addColorStop(1, '#e8301c');
+      g.fillStyle = grd;
+      g.beginPath();
+      g.moveTo(0, h * 0.2);
+      for (let i = 0; i <= 6; i++) { const x = (i / 6) * w; g.quadraticCurveTo(x - w / 14, h * (i % 2 ? 0.05 : 0.35), x, h * (i % 2 ? 0.25 : 0.1)); }
+      g.lineTo(w, h * 0.5);
+      for (let i = 6; i >= 0; i--) { const x = (i / 6) * w; g.quadraticCurveTo(x + w / 14, h * (i % 2 ? 0.95 : 0.7), x, h * (i % 2 ? 0.8 : 0.9)); }
+      g.closePath();
+      g.fill();
+      g.lineWidth = 3; g.strokeStyle = '#7a1a12'; g.stroke();
+    } else if (kind === 'relampago') {
+      g.fillStyle = '#ffd23d';
+      g.strokeStyle = '#1d2b4f'; g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(10, h * 0.55); g.lineTo(w * 0.4, h * 0.2); g.lineTo(w * 0.42, h * 0.45); g.lineTo(w * 0.75, h * 0.15); g.lineTo(w * 0.62, h * 0.55); g.lineTo(w - 6, h * 0.35);
+      g.lineTo(w * 0.55, h * 0.85); g.lineTo(w * 0.58, h * 0.6); g.lineTo(w * 0.25, h * 0.85); g.lineTo(w * 0.32, h * 0.55); g.closePath();
+      g.fill(); g.stroke();
+    } else if (kind === 'xadrez') {
+      for (let i = 0; i < 16; i++) for (let k = 0; k < 4; k++) { g.fillStyle = (i + k) % 2 ? '#111' : '#fff'; g.fillRect(i * 16, k * 16, 16, 16); }
+    }
+  });
+  decalTexCache.set(key, t);
+  return t;
+}
+
+export function buildCar(spec, { driver = true, face = null } = {}) {
   const D = CAR_DIMS[spec.type] || CAR_DIMS.hatch;
   const col = part('color', spec.color) || { hex: '#e8473c' };
   const wd = WHEELS[spec.wheels] || WHEELS.padrao;
@@ -195,7 +267,7 @@ export function buildCar(spec, { driver = true } = {}) {
   const body = new THREE.Group();
   root.add(body);
 
-  const paint = new THREE.MeshStandardMaterial({ color: col.hex, roughness: col.metal ? 0.22 : 0.3, metalness: col.metal ? 0.75 : 0.08 });
+  const paint = paintMaterial(col);
   paint.userData.base = new THREE.Color(col.hex);
   const dark = mat('#2b2d36', { r: 0.6 });
   const trim = mat('#3a3d48', { r: 0.5, m: 0.2 });
@@ -252,10 +324,13 @@ export function buildCar(spec, { driver = true } = {}) {
     mesh(box(0.03, 0.04, 0.14), trim, sx * (W / 2 + 0.01), bottom + H * 0.72, CZ + 0.15, body).castShadow = false;
   }
   if (driver && !D.van) {
-    const skin = ['#f1c09a', '#c98a5e', '#8a5a3a', '#f6d2b4'][Math.abs(hash(spec.color + spec.type)) % 4];
+    const skin = face?.skin || ['#f1c09a', '#c98a5e', '#8a5a3a', '#f6d2b4'][Math.abs(hash(spec.color + spec.type)) % 4];
     mesh(sph(0.16, 10, 8), mat(skin, { r: 0.8 }), W * 0.2, top + 0.2, CZ + 0.15, body);
-    const hair = mesh(sph(0.17, 10, 6), mat(['#3a2a1e', '#1f1f24', '#c98a2a', '#7a3a2a'][Math.abs(hash(spec.type + spec.color)) % 4], { r: 0.9 }), W * 0.2, top + 0.27, CZ + 0.1, body);
-    hair.scale.set(1, 0.6, 1);
+    const hairCol = face?.hat || face?.hair || ['#3a2a1e', '#1f1f24', '#c98a2a', '#7a3a2a'][Math.abs(hash(spec.type + spec.color)) % 4];
+    if (face?.style !== 'careca' || face?.hat) {
+      const hair = mesh(sph(0.17, 10, 6), mat(hairCol, { r: 0.9 }), W * 0.2, top + 0.27, CZ + 0.1, body);
+      hair.scale.set(1, 0.6, 1);
+    }
   }
   if (D.bed) {
     const bz = -L / 2 + (L / 2 + CZ - CL / 2) / 2 - 0.1;
@@ -289,6 +364,19 @@ export function buildCar(spec, { driver = true } = {}) {
       mesh(box(0.07, 0.42, 0.12), carbon, sx * W * 0.3, sy + 0.22, sz0, body);
       mesh(rbox(0.06, 0.28, 0.54, 0.02), paint, sx * W * 0.52, sy + 0.46, sz0 - 0.05, body);
     }
+  } else if (spec.spoiler === 'ducktail') {
+    const duck = mesh(rbox(W * 0.94, 0.12, 0.42, 0.05), paint, 0, sy + 0.1, sz0 - 0.08, body);
+    duck.rotation.x = -0.45;
+  } else if (spec.spoiler === 'drift') {
+    const carbon = mat('#1f222b', { r: 0.35, m: 0.3 });
+    const wing = mesh(rbox(W * 1.25, 0.09, 0.62, 0.03), carbon, 0, sy + 0.78, sz0 - 0.15, body);
+    wing.rotation.x = -0.2;
+    mesh(box(W * 1.2, 0.03, 0.12), mat('#e8473c', { e: '#e8473c', ei: 0.3 }), 0, sy + 0.84, sz0 - 0.38, body);
+    for (const sx of [-1, 1]) {
+      const post = mesh(box(0.06, 0.8, 0.1), carbon, sx * W * 0.28, sy + 0.38, sz0 - 0.05, body);
+      post.rotation.x = 0.25;
+      mesh(rbox(0.06, 0.4, 0.7, 0.02), paint, sx * W * 0.63, sy + 0.78, sz0 - 0.15, body);
+    }
   }
 
   // Adesivos.
@@ -306,6 +394,28 @@ export function buildCar(spec, { driver = true } = {}) {
     for (const sx of [-1, 1]) {
       mesh(box(0.02, 0.1, L * 0.82), dm, sx * (W / 2 + 0.004), bottom + H * 0.62, 0, body);
       mesh(box(0.02, 0.05, L * 0.7), mat(spec.color === 'vermelho' ? '#ffc93c' : '#e8473c'), sx * (W / 2 + 0.005), bottom + H * 0.42, 0.1, body);
+    }
+  } else if (spec.decal === 'chamas' || spec.decal === 'relampago') {
+    const tex = decalTexture(spec.decal, decalCol);
+    for (const sx of [-1, 1]) {
+      const p = new THREE.Mesh(plane(L * 0.62, H * 0.75), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.4 }));
+      p.position.set(sx * (W / 2 + 0.012), bottom + H * 0.5, L * 0.12);
+      p.rotation.y = sx * Math.PI / 2;
+      if (sx < 0) p.scale.x = -1;
+      body.add(p);
+    }
+  } else if (spec.decal === 'xadrez') {
+    const tex = decalTexture('xadrez', decalCol);
+    const roof = new THREE.Mesh(plane(CL * 0.85, 0.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }));
+    roof.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+    roof.position.set(0, top + CH + 0.05, CZ);
+    body.add(roof);
+    const hoodLen = L / 2 - (CZ + CL / 2) - 0.1;
+    if (hoodLen > 0.2) {
+      const hood = new THREE.Mesh(plane(hoodLen, 0.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }));
+      hood.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+      hood.position.set(0, top + 0.01, CZ + CL / 2 + hoodLen / 2);
+      body.add(hood);
     }
   } else if (spec.decal === 'numero') {
     const tex = textTexture('77', { w: 128, h: 128, bg: '#ffffff', fg: '#22252e', size: 70, stroke: '#22252e', radius: 64 });
@@ -327,6 +437,7 @@ export function buildCar(spec, { driver = true } = {}) {
     );
     neon.rotation.x = -Math.PI / 2;
     neon.position.y = 0.04;
+    neon.userData.rainbow = !!n.rainbow;
     root.add(neon);
     mesh(box(W * 0.9, 0.04, L * 0.86), mat(n.hex, { e: n.hex, ei: 1.4 }), 0, bottom - 0.02, 0, body);
   }
@@ -920,9 +1031,10 @@ function buildDecor(type) {
   return g;
 }
 
-export function buildBuilding(type, level = 1) {
+export function buildBuilding(type, level = 1, uniform = null) {
   let g;
   switch (type) {
+    case 'guincho': g = buildGuincho(level); break;
     case 'elevador': g = buildElevador(level); break;
     case 'cabine': g = buildCabine(level); break;
     case 'lavajato': g = buildLavajato(level); break;
@@ -941,7 +1053,7 @@ export function buildBuilding(type, level = 1) {
     restauracao: ['#ff8a2a', '#22252e', 1.5, 1.4, -Math.PI / 2],
   }[type];
   if (staff) {
-    const mech = buildMechanic(staff[0], staff[1]);
+    const mech = buildMechanic(uniform || staff[0], staff[1]);
     mech.position.set(staff[2], 0.22, staff[3]);
     mech.rotation.y = staff[4];
     mech.userData.home = { x: staff[2], z: staff[3], r: staff[4] };
@@ -1129,4 +1241,121 @@ export function buildTrack(path, width = 5.2, dirt = false) {
 export function ghostify(group, ok) {
   const m = new THREE.MeshStandardMaterial({ color: ok ? '#6dff8a' : '#ff5a5a', transparent: true, opacity: 0.55, emissive: ok ? '#2a8a3a' : '#8a2020', emissiveIntensity: 0.5 });
   group.traverse((o) => { if (o.isMesh) { o.material = m; o.castShadow = false; } if (o.isLight) o.intensity = 0; });
+}
+
+
+// ---------- guincho ----------
+export function buildTowTruck(withCar = null) {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const red = mat('#e8473c', { r: 0.35, m: 0.1 });
+  const yellow = mat('#ffc93c', { r: 0.4 });
+  const dark = mat('#2b2d36', { r: 0.6 });
+  // Cabine na frente (+z).
+  mesh(rbox(1.9, 1.0, 1.7, 0.18), red, 0, 1.1, 1.55, body);
+  mesh(rbox(1.75, 0.75, 1.2, 0.2), mat('#2a4068', { r: 0.08, m: 0.4, t: 0.7 }), 0, 1.85, 1.35, body);
+  mesh(rbox(1.8, 0.12, 1.25, 0.05), red, 0, 2.25, 1.35, body);
+  for (const sx of [-1, 1]) {
+    mesh(rbox(0.36, 0.18, 0.08, 0.05), glow('#fff6c8', '#ffe9a0', '#fff4c0', 0.6, 2.4), sx * 0.62, 1.05, 2.42, body);
+    mesh(rbox(0.25, 0.25, 0.25, 0.05), glow('#ff9a1a', '#ff8a00', '#ffaa20', 1.2, 2.6), sx * 0.55, 2.42, 1.35, body);
+  }
+  mesh(rbox(1.92, 0.22, 0.2, 0.06), mat('#3a3d48'), 0, 0.62, 2.45, body);
+  // Plataforma inclinável e braço.
+  mesh(rbox(2.0, 0.22, 3.0, 0.06), yellow, 0, 0.95, -0.85, body);
+  for (const sx of [-1, 1]) mesh(box(0.08, 0.2, 2.9), dark, sx * 0.98, 1.15, -0.85, body);
+  for (let i = 0; i < 6; i++) mesh(box(1.9, 0.02, 0.06), mat('#d9a520'), 0, 1.07, -2.2 + i * 0.5, body);
+  const boom = mesh(box(0.22, 0.22, 1.6), mat('#3a3d48', { m: 0.5, r: 0.4 }), 0, 1.75, -1.7, body);
+  boom.rotation.x = 0.55;
+  mesh(cyl(0.02, 0.02, 0.6, 6), dark, 0, 1.6, -2.45, body);
+  mesh(box(0.25, 0.08, 0.15), dark, 0, 1.28, -2.45, body);
+  const s1 = sign('GUINCHO', 1.4, 0.36, { w: 384, h: 96, bg: '#ffc93c', fg: '#1d2b4f', stroke: '#1d2b4f', size: 66 });
+  for (const sx of [-1, 1]) {
+    const sg = s1.clone();
+    sg.position.set(sx * 0.96, 1.15, 1.55);
+    sg.rotation.y = sx * Math.PI / 2;
+    body.add(sg);
+  }
+  const wheels = [];
+  for (const sz of [1.5, -0.4, -1.6]) for (const sx of [-1, 1]) {
+    const w = buildWheel(WHEELS.padrao);
+    w.scale.setScalar(1.25);
+    w.position.set(sx * 0.95, 0.45, sz);
+    g.add(w);
+    wheels.push(w);
+  }
+  if (withCar) {
+    const c = buildCar(withCar, { driver: false });
+    c.scale.setScalar(0.78);
+    c.position.set(0, 1.06, -0.9);
+    body.add(c);
+    g.userData.towed = c;
+  }
+  g.userData = { ...g.userData, body, wheels, wheelR: 0.45, beacons: body.children.filter((m) => m.material?.userData?.night && m.position.y > 2.3) };
+  return g;
+}
+
+function buildGuincho(level) {
+  const g = new THREE.Group();
+  g.add(slab(2, 3, '#d8dce4'));
+  hazard(g, 3.6, 2.75);
+  // Cabine de atendimento com telefone e placa 24h.
+  mesh(rbox(1.6, 2.2, 1.4, 0.1), mat('#fff4dc'), -1.0, 1.3, -2.0, g);
+  mesh(rbox(1.8, 0.25, 1.6, 0.08), mat(TIER[level - 1]), -1.0, 2.5, -2.0, g);
+  mesh(rbox(0.9, 0.7, 0.06, 0.04), glow('#9fd8f5', '#3a6a8a', '#ffcf70', 0.3, 1.4, { r: 0.1, m: 0.3 }), -1.0, 1.5, -1.28, g);
+  const s = sign('GUINCHO 24H', 2.6, 0.6, { w: 640, h: 128, bg: '#ffc93c', fg: '#1d2b4f', stroke: '#1d2b4f', size: 76, night: true });
+  s.position.set(0.3, 3.3, -2.6);
+  g.add(s);
+  mesh(rbox(2.7, 0.7, 0.12, 0.05), mat('#1d2b4f'), 0.3, 3.3, -2.68, g);
+  for (const sx of [-0.8, 1.4]) mesh(box(0.12, 3.0, 0.12), mat('#5a6070'), sx, 1.5, -2.7, g);
+  // Caminhão estacionado.
+  const truck = buildTowTruck();
+  truck.scale.setScalar(0.8);
+  truck.position.set(0.55, 0.22, 0.3);
+  g.add(truck);
+  g.userData.truck = truck;
+  // Luz de chamado (pisca quando tem chamado).
+  const beacon = mesh(sph(0.22, 10, 8), mat('#ff3b3b', { e: '#ff2020', ei: 2 }), -1.0, 2.85, -2.0, g);
+  beacon.visible = false;
+  g.userData.beacon = beacon;
+  for (let i = 0; i < 3; i++) g.add(buildCone(-1.6 + i * 0.5, 2.4));
+  levelStars(g, level, 3.85, -2.6);
+  return g;
+}
+
+export function buildCone(x = 0, z = 0, scale = 1) {
+  const c = new THREE.Group();
+  mesh(cyl(0.06, 0.24, 0.62, 10), mat('#ff8a2a'), 0, 0.33, 0, c);
+  mesh(cyl(0.12, 0.16, 0.12, 10), mat('#ffffff'), 0, 0.36, 0, c);
+  mesh(box(0.5, 0.06, 0.5), mat('#ff8a2a'), 0, 0.03, 0, c);
+  c.position.set(x, 0.22, z);
+  c.scale.setScalar(scale);
+  return c;
+}
+
+export function buildBarrier() {
+  const g = new THREE.Group();
+  for (const sx of [-0.7, 0.7]) mesh(box(0.1, 0.8, 0.1), mat('#ffffff'), sx, 0.4, 0, g);
+  const tex = canvasTex(128, 32, (x) => { for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#e8473c' : '#ffffff'; x.beginPath(); x.moveTo(i * 16, 32); x.lineTo(i * 16 + 16, 0); x.lineTo(i * 16 + 32, 0); x.lineTo(i * 16 + 16, 32); x.fill(); } });
+  const bar = new THREE.Mesh(box(1.8, 0.35, 0.12), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
+  bar.position.y = 0.75;
+  bar.castShadow = true;
+  g.add(bar);
+  return g;
+}
+
+export function buildOil() {
+  const m = new THREE.Mesh(cyl(0.9, 0.9, 0.02, 20), mat('#14151a', { r: 0.05, m: 0.6, t: 0.85 }));
+  m.scale.set(1, 1, 0.6);
+  m.position.y = 0.03;
+  return m;
+}
+
+export function buildCoin() {
+  const g = new THREE.Group();
+  const c = mesh(cyl(0.38, 0.38, 0.1, 18), mat('#ffcc33', { m: 0.85, r: 0.25, e: '#ff9900', ei: 0.35 }), 0, 0, 0, g);
+  c.rotation.x = Math.PI / 2;
+  mesh(box(0.08, 0.36, 0.12), mat('#e8a300', { m: 0.8, r: 0.3 }), 0, 0, 0, g);
+  g.position.y = 0.8;
+  return g;
 }

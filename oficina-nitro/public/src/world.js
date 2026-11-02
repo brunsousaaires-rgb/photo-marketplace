@@ -1,13 +1,16 @@
 // Cena 3D: câmera isométrica, terreno expansível, rua viva, dia/noite, construções, carros, pista e efeitos.
 import * as THREE from 'three';
-import { TILE, GRID_H, MAX_W, BUILDINGS, CAR_TYPES, PARTS, LAND } from './data.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { TILE, GRID_H, MAX_W, BUILDINGS, CAR_TYPES, PARTS, LAND, CHARACTERS } from './data.js';
 import {
   buildCar, buildBuilding, buildTree, buildHouse, buildPerson, buildScaffold, buildSaleSign, buildTrack, makeTrackPath,
   animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH,
 } from './models.js';
+export { LOT_D_EXPORT as LOT_D };
 import { laneTiles, canPlace } from './logic.js';
 
 const LOT_D = GRID_H * TILE;
+const LOT_D_EXPORT = LOT_D;
 const MAX_LOT_W = MAX_W * TILE;
 const QUEUE_Z = LOT_D + 3.2; // faixa de espera, colada na calçada
 const PASS_Z = LOT_D + 6.6; // clientes indo embora
@@ -54,6 +57,7 @@ export class World {
     this.skyDay = new THREE.Color('#8fd3f2');
     this.skyNight = new THREE.Color('#15214a');
     this.skyDusk = new THREE.Color('#f7a46b');
+    this.skyRain = new THREE.Color('#7d8ea3');
     this.scene.background = this.skyDay.clone();
     this.target = new THREE.Vector3(14.5, 0, LOT_D / 2 - 1.5);
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
@@ -95,6 +99,12 @@ export class World {
     this.trafficIn = 2;
     this.walkerIn = 1;
 
+    const pm = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    pm.dispose();
+    this.staffViews = [];
+    this.rainK = 0;
+    this.initRain();
     this.buildTerrain();
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -161,7 +171,13 @@ export class World {
   setLot(state) {
     const G = this.lotGroup;
     G.clear();
+    this.buildLotInto(G, state.lotW);
     const W = state.lotW * TILE;
+    this.placeSaleAndTrack(state, G, W);
+  }
+
+  buildLotInto(G, lotW) {
+    const W = lotW * TILE;
     const tex = (() => {
       const c = document.createElement('canvas');
       c.width = c.height = 128;
@@ -171,7 +187,7 @@ export class World {
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(state.lotW, GRID_H);
+      t.repeat.set(lotW, GRID_H);
       return t;
     })();
     const lot = new THREE.Mesh(new THREE.BoxGeometry(W, 0.2, LOT_D), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
@@ -186,6 +202,9 @@ export class World {
     mesh(rbox(W + 2, 1.1, 1, 0.4), hedge, W / 2, 0.55, -1.0, G);
     mesh(rbox(1, 1.1, LOT_D + 1, 0.4), hedge, -1.0, 0.55, LOT_D / 2 - 0.5, G);
     mesh(rbox(1, 1.1, LOT_D + 1, 0.4), hedge, W + 1.0, 0.55, LOT_D / 2 - 0.5, G);
+  }
+
+  placeSaleAndTrack(state, G, W) {
     // Próximo terreno à venda: cerquinha de corda + placa.
     const next = LAND[state.land.length];
     this.saleSign = null;
@@ -325,17 +344,17 @@ export class World {
     for (const b of state.buildings) {
       ids.add(b.id);
       let v = this.buildViews.get(b.id);
-      if (v && (v.level !== b.level || v.x !== b.x || v.z !== b.z)) {
+      if (v && (v.level !== b.level || v.x !== b.x || v.z !== b.z || v.uniform !== state.uniform)) {
         if (v.level !== b.level) popId = b.id;
         this.removeView(b.id);
         v = null;
       }
       if (!v) {
-        const g = buildBuilding(b.type, b.level);
+        const g = buildBuilding(b.type, b.level, state.uniform);
         g.position.copy(tileCenter(b.type, b.x, b.z));
         g.userData.pick = { kind: 'building', id: b.id };
         this.scene.add(g);
-        v = { g, type: b.type, level: b.level, x: b.x, z: b.z, pop: b.id === popId ? 0 : 1, lift: 0.3, walk: { i: 0, wait: 0 } };
+        v = { g, type: b.type, level: b.level, x: b.x, z: b.z, uniform: state.uniform, pop: b.id === popId ? 0 : 1, lift: 0.3, walk: { i: 0, wait: 0 } };
         this.buildViews.set(b.id, v);
         if (b.id === popId) { this.burst(g.position, '#e9dcc4', 22, 4, 0.25, 1.2); this.confetti(g.position, 24); }
         if (b.job && !this.carViews.has(b.job.c.id)) {
@@ -355,6 +374,7 @@ export class World {
     }
     for (const id of [...this.buildViews.keys()]) if (!ids.has(id)) this.removeView(id);
     this.drawLanes(state);
+    this.syncStaff(state);
   }
 
   removeView(id) {
@@ -462,7 +482,8 @@ export class World {
 
   // ---------- carros de clientes ----------
   addCar(c, pos, heading) {
-    const g = buildCar(c.car);
+    const ch = c.char ? CHARACTERS.find((x) => x.id === c.char) : null;
+    const g = buildCar(c.car, { face: ch ? ch.face : null });
     g.position.copy(pos);
     g.rotation.y = heading;
     g.userData.pick = { kind: 'car', id: c.id };
@@ -571,7 +592,7 @@ export class World {
   // ---------- vida na rua ----------
   updateStreet(dt) {
     this.trafficIn -= dt;
-    if (this.trafficIn <= 0 && this.traffic.length < 5) {
+    if (this.trafficIn <= 0 && this.traffic.length < 5 && !this.trafficPaused) {
       this.trafficIn = rnd(3, 8);
       const spec = { type: pickOne(CAR_TYPES).id, color: pickOne(PARTS.color).id, wheels: pickOne(['padrao', 'padrao', 'esportiva']), spoiler: 'nenhum', neon: 'nenhum', decal: Math.random() < 0.2 ? 'listras' : 'nenhum' };
       const g = buildCar(spec);
@@ -620,9 +641,11 @@ export class World {
     const n = nightFactor(p);
     const dusk = Math.max(0, 1 - Math.abs(p - 0.62) / 0.05) + Math.max(0, 1 - Math.abs(p - 0.95) / 0.04);
     this.scene.background.copy(this.skyDay).lerp(this.skyDusk, Math.min(1, dusk) * 0.6).lerp(this.skyNight, n);
-    this.sun.intensity = 2.4 * (1 - n * 0.8);
+    const rk = this.rainK;
+    this.scene.background.lerp(this.skyRain, rk * 0.65 * (1 - n));
+    this.sun.intensity = 2.4 * (1 - n * 0.8) * (1 - rk * 0.62);
     this.sun.color.set('#fff0d6').lerp(new THREE.Color('#ff9a5a'), Math.min(1, dusk) * 0.7).lerp(new THREE.Color('#8aa0ff'), n);
-    this.hemi.intensity = 1.25 * (1 - n * 0.5);
+    this.hemi.intensity = 1.25 * (1 - n * 0.5) * (1 - rk * 0.32);
     this.hemi.color.set('#d6eeff').lerp(new THREE.Color('#5a6ab0'), n);
     if (Math.abs(n - this.night) > 0.01) {
       this.night = n;
@@ -644,8 +667,10 @@ export class World {
   update(dt, state) {
     this.time += dt;
     const T = this.time;
+    this.updateRain(dt, !!state.weather?.rain && !this.visit);
     const night = this.updateSky(dt);
     this.updateStreet(dt);
+    this.updateStaff(dt);
     for (let i = 0; i < this.swaying.length; i++) this.swaying[i].rotation.z = Math.sin(T * 1.2 + i) * 0.03;
 
     if (this.followCam) {
@@ -706,6 +731,10 @@ export class World {
       if (u.cup) u.cup.rotation.y += dt * 0.6;
       if (u.crown) u.crown.rotation.z = Math.sin(T * 1.3 + id) * 0.04;
       if (u.blink) u.blink.visible = Math.sin(T * 4) > 0;
+      if (u.beacon) {
+        u.beacon.visible = !!state.towCall && Math.sin(T * 10) > 0;
+        if (u.truck) u.truck.visible = !this.towing;
+      }
       if (u.jet) { u.jet.scale.y = 1 + Math.sin(T * 6) * 0.25; if (Math.random() < dt * 6) this.puff(v.g.position.clone().setY(2.1), '#bfeaff', 0.12, 1.2, 0.6); }
       if (u.neonSign) u.neonSign.material.emissiveIntensity = (1.1 + night) + (Math.sin(T * 9) > 0.92 ? -0.8 : 0);
       if (v.display) for (const c of v.display.children) c.rotation.y += dt * 0.3;
@@ -784,7 +813,10 @@ export class World {
           } else g.position.y = 0.22;
         }
       }
-      if (u.neon) u.neon.material.opacity = 0.75 + Math.sin(T * 4 + v.id) * 0.2;
+      if (u.neon) {
+        u.neon.material.opacity = 0.75 + Math.sin(T * 4 + v.id) * 0.2;
+        if (u.neon.userData.rainbow) u.neon.material.color.setHSL((T * 0.25 + v.id * 0.1) % 1, 1, 0.6);
+      }
       if (u.spec.broken && !v.atBay && !moving && Math.random() < dt * 2.5) {
         this.puff(g.position.clone().setY(1.4).add(new THREE.Vector3(Math.sin(v.heading) * 1.2, 0, Math.cos(v.heading) * 1.2)), '#9aa0aa', 0.25, 1.4, 1.4);
       }
@@ -855,3 +887,135 @@ export class World {
     animatePerson(m, T, 'walk');
   }
 }
+
+
+// ===================== Atualização 3: chuva, equipe, visita =====================
+World.prototype.initRain = function () {
+  const n = 2600;
+  const pos = new Float32Array(n * 6);
+  for (let i = 0; i < n; i++) this.resetDrop(pos, i, true);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  this.rain = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#eef5ff', transparent: true, opacity: 0, depthWrite: false }));
+  this.rain.frustumCulled = false;
+  this.rain.visible = false;
+  this.scene.add(this.rain);
+  this.rainN = n;
+};
+
+World.prototype.resetDrop = function (pos, i, anyY) {
+  const t = this.target || new THREE.Vector3(16, 0, 9);
+  const x = t.x + (Math.random() - 0.5) * 80, z = t.z + (Math.random() - 0.5) * 80;
+  const y = anyY ? Math.random() * 28 : 24 + Math.random() * 6;
+  pos.set([x, y, z, x - 0.18, y - 1.5, z - 0.08], i * 6);
+};
+
+World.prototype.updateRain = function (dt, on) {
+  this.rainK += ((on ? 1 : 0) - this.rainK) * Math.min(1, dt * 0.8);
+  const vis = this.rainK > 0.02;
+  this.rain.visible = vis;
+  if (!vis) return;
+  this.rain.material.opacity = 0.9 * this.rainK;
+  const pos = this.rain.geometry.attributes.position.array;
+  const fall = 34 * dt;
+  for (let i = 0; i < this.rainN; i++) {
+    const k = i * 6;
+    pos[k + 1] -= fall; pos[k + 4] -= fall;
+    pos[k] -= fall * 0.13; pos[k + 3] -= fall * 0.13;
+    if (pos[k + 4] < 0) {
+      if (Math.random() < 0.02 * this.rainK) this.puff(new THREE.Vector3(pos[k], 0.15, pos[k + 2]), '#dfe9ff', 0.08, 0.6, 0.25);
+      this.resetDrop(pos, i, false);
+    }
+  }
+  this.rain.geometry.attributes.position.needsUpdate = true;
+};
+
+// Funcionários contratados circulando pela oficina com o uniforme.
+World.prototype.syncStaff = function (state) {
+  this.staffState = state;
+  const want = (state.staff || []).map((m) => m.role + ':' + m.name + ':' + state.uniform).join('|');
+  if (want === this.staffSig) return;
+  this.staffSig = want;
+  for (const sv of this.staffViews) this.scene.remove(sv.p);
+  this.staffViews = (state.staff || []).map((m, i) => {
+    const p = buildPerson({ shirt: state.uniform, pants: '#26344f', skin: m.skin, hair: m.hair, hat: i % 2 ? state.uniform : null, tool: true });
+    p.position.set(4 + i * 3, 0.12, LOT_D - 2);
+    this.scene.add(p);
+    return { p, goal: null, wait: Math.random() * 2, ph: Math.random() * 6 };
+  });
+};
+
+World.prototype.updateStaff = function (dt) {
+  const st = this.staffState;
+  if (!st || this.visit) { for (const sv of this.staffViews) sv.p.visible = !this.visit; return; }
+  for (const sv of this.staffViews) {
+    const p = sv.p;
+    p.visible = true;
+    if (sv.wait > 0) { sv.wait -= dt; animatePerson(p, this.time + sv.ph, 'idle'); continue; }
+    if (!sv.goal) {
+      for (let k = 0; k < 10; k++) {
+        const x = Math.floor(Math.random() * st.lotW), z = Math.floor(Math.random() * GRID_H);
+        if (canPlace(st, 'arvore', x, z) || laneTiles(st).has(`${x},${z}`)) { sv.goal = { x: (x + 0.5) * TILE, z: (z + 0.5) * TILE }; break; }
+      }
+      if (!sv.goal) { sv.wait = 1; continue; }
+    }
+    const dx = sv.goal.x - p.position.x, dz = sv.goal.z - p.position.z, d = Math.hypot(dx, dz);
+    if (d < 0.1) { sv.goal = null; sv.wait = 1.5 + Math.random() * 3; continue; }
+    const step = Math.min(d, 1.6 * dt);
+    p.position.x += (dx / d) * step; p.position.z += (dz / d) * step;
+    p.rotation.y = lerpAngle(p.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
+    animatePerson(p, this.time * 1.1 + sv.ph, 'walk');
+  }
+};
+
+// Modo visita: mostra a oficina de outro jogador no lugar da sua.
+World.prototype.enterVisit = function (snap) {
+  this.exitVisit();
+  this.visit = new THREE.Group();
+  const lotW = Math.max(16, Math.min(MAX_W, snap.lotW || 16));
+  this.buildLotInto(this.visit, lotW);
+  for (const b of snap.buildings || []) {
+    if (!BUILDINGS[b.type]) continue;
+    const g = buildBuilding(b.type, Math.max(1, Math.min(5, b.level || 1)), snap.uniform || null);
+    g.position.copy(tileCenter(b.type, b.x, b.z));
+    this.visit.add(g);
+    if (b.type === 'showroom' && g.userData.slots) {
+      (snap.cars || []).slice(0, 3).forEach((c, i) => {
+        const sl = g.userData.slots[i];
+        const car = buildCar(c, { driver: false });
+        car.position.set(sl.x, 0.44, sl.z);
+        car.rotation.y = sl.r * Math.PI;
+        car.scale.setScalar(0.72);
+        g.add(car);
+      });
+    }
+  }
+  // Os carros da garagem do amigo ficam estacionados na frente.
+  (snap.cars || []).slice(0, 4).forEach((c, i) => {
+    const car = buildCar(c, { driver: false });
+    car.position.set(5 + i * 5.5, 0, LOT_D + 3.2);
+    car.rotation.y = Math.PI / 2;
+    this.visit.add(car);
+  });
+  const own = [this.lotGroup, this.lanesGroup, this.trackGroup, ...[...this.buildViews.values()].flatMap((v) => [v.g, v.scaffold].filter(Boolean)), ...[...this.carViews.values()].map((v) => v.g), ...this.leaving.map((v) => v.g)];
+  this.hiddenForVisit = own.filter((o) => o && o.visible);
+  for (const o of this.hiddenForVisit) o.visible = false;
+  if (snap.track) { const t = buildTrack(TRACK_PATH); this.visit.add(t); }
+  this.scene.add(this.visit);
+  this.saved = this.saved || { target: this.target.clone(), zoom: this.zoomTarget };
+  this.panTo(new THREE.Vector3(lotW, 0, LOT_D / 2 - 1), 0.85);
+};
+
+World.prototype.exitVisit = function () {
+  if (!this.visit) return;
+  this.scene.remove(this.visit);
+  this.visit = null;
+  for (const o of this.hiddenForVisit || []) o.visible = true;
+  this.hiddenForVisit = null;
+  this.unfocus();
+};
+
+World.prototype.clearTraffic = function () {
+  for (const t of this.traffic) this.scene.remove(t.g);
+  this.traffic = [];
+};

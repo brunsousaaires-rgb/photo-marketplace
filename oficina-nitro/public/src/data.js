@@ -56,6 +56,12 @@ export const BUILDINGS = {
     upCost: [600, 1500, 3500, 7000], speed: [1, 1.3, 1.65, 2.05, 2.6],
     desc: 'Restaure carros comprados no leilão para sua coleção, para correr ou vender.',
   },
+  guincho: {
+    name: 'Base do Guincho', icon: '🚚', w: 2, d: 3, unlock: 4, cat: 'servicos', build: 12,
+    cost: [1200], limit: [[4, 1]],
+    upCost: [500, 1300, 3000, 6000], towPay: [1, 1.25, 1.5, 1.8, 2.2],
+    desc: 'Atende chamados de carros quebrados pela cidade. Dirija o guincho e traga o carro!',
+  },
   showroom: {
     name: 'Showroom', icon: '🏬', w: 3, d: 3, unlock: 5, cat: 'servicos', build: 14,
     cost: [2000], limit: [[5, 1]],
@@ -91,17 +97,26 @@ export const PARTS = {
     { id: 'ciano', name: 'Ciano', hex: '#33d0e0', lvl: 6 },
     { id: 'dourado', name: 'Dourado', hex: '#e8b33a', lvl: 6, metal: true },
     { id: 'prata', name: 'Prata', hex: '#c9ced8', lvl: 8, metal: true },
+    { id: 'perolado', name: 'Perolado', hex: '#f4efe6', lvl: 99, rare: 'raro', pearl: true },
+    { id: 'fosco', name: 'Preto Fosco', hex: '#2a2c33', lvl: 99, rare: 'raro', matte: true },
+    { id: 'cromo', name: 'Cromado', hex: '#e8edf5', lvl: 99, rare: 'epico', chrome: true },
+    { id: 'camaleao', name: 'Camaleão', hex: '#7a5cff', lvl: 99, rare: 'lendario', iris: true },
   ],
   wheels: [
     { id: 'padrao', name: 'Padrão', lvl: 1 },
     { id: 'esportiva', name: 'Esportiva', lvl: 1 },
     { id: 'cromada', name: 'Cromada', lvl: 3 },
     { id: 'offroad', name: 'Off-road', lvl: 5 },
+    { id: 'raio', name: 'Raio Dourado', lvl: 99, rare: 'raro' },
+    { id: 'neonrim', name: 'Aro Neon', lvl: 99, rare: 'epico' },
+    { id: 'turbina', name: 'Turbina', lvl: 99, rare: 'lendario' },
   ],
   spoiler: [
     { id: 'nenhum', name: 'Nenhum', lvl: 1 },
     { id: 'pequeno', name: 'Lip', lvl: 1 },
     { id: 'grande', name: 'Asa GT', lvl: 4 },
+    { id: 'ducktail', name: 'Rabo de Pato', lvl: 99, rare: 'raro' },
+    { id: 'drift', name: 'Asa Drift', lvl: 99, rare: 'epico' },
   ],
   neon: [
     { id: 'nenhum', name: 'Nenhum', lvl: 1 },
@@ -109,12 +124,16 @@ export const PARTS = {
     { id: 'rosa', name: 'Neon Rosa', hex: '#ff4fd8', lvl: 4 },
     { id: 'verde', name: 'Neon Verde', hex: '#4dff7a', lvl: 6 },
     { id: 'dourado', name: 'Neon Dourado', hex: '#ffd23d', lvl: 8 },
+    { id: 'arcoiris', name: 'Neon Arco-íris', hex: '#ff4fd8', lvl: 99, rare: 'lendario', rainbow: true },
   ],
   decal: [
     { id: 'nenhum', name: 'Nenhum', lvl: 1 },
     { id: 'listras', name: 'Listras', lvl: 3 },
     { id: 'faixa', name: 'Faixa Lateral', lvl: 5 },
     { id: 'numero', name: 'Número', lvl: 7 },
+    { id: 'xadrez', name: 'Xadrez', lvl: 99, rare: 'raro' },
+    { id: 'relampago', name: 'Relâmpago', lvl: 99, rare: 'raro' },
+    { id: 'chamas', name: 'Chamas', lvl: 99, rare: 'epico' },
   ],
 };
 
@@ -200,3 +219,157 @@ export function limitAt(type, level) {
 
 export const BUILDING_MAX_LEVEL = 5;
 export const UPGRADE_TIME = [6, 15, 30, 60];
+
+// ===================== Atualização 3 =====================
+
+export const RARITY = {
+  raro: { name: 'Raro', color: '#36b8ff', dup: 300 },
+  epico: { name: 'Épico', color: '#a86bff', dup: 800 },
+  lendario: { name: 'Lendário', color: '#ffb300', dup: 2000 },
+};
+
+export const RARE_PARTS = Object.entries(PARTS).flatMap(([kind, list]) => list.filter((p) => p.rare).map((p) => ({ kind, ...p })));
+
+// Caixas de prêmio: chance de cada raridade (o resto vira moedas).
+export const CRATES = {
+  bronze: { name: 'Caixa de Bronze', color: '#d08a4a', odds: { raro: 0.25 }, coins: [80, 200] },
+  prata: { name: 'Caixa de Prata', color: '#c9ced8', odds: { raro: 0.6, epico: 0.25 }, coins: [200, 450] },
+  ouro: { name: 'Caixa de Ouro', color: '#ffcc33', odds: { raro: 0.3, epico: 0.45, lendario: 0.25 }, coins: [500, 1000] },
+};
+
+// Clientes fixos com história (5 capítulos de amizade).
+export const CHARACTERS = [
+  {
+    id: 'ze', name: 'Seu Zé', lvl: 1, bio: 'Aposentado. Cuida do hatch branco como se fosse um filho.',
+    face: { skin: '#f1c09a', hair: '#e8e0d0', style: 'careca', mustache: true },
+    car: { type: 'hatch', color: 'branco' }, kinds: ['repair', 'wash'],
+    lines: [
+      'Esse carro tem 30 anos e nunca me deixou na mão. Cuida bem dele, hein?',
+      'Comprei ele com o primeiro salário de motorista de ônibus. Bons tempos...',
+      'Minha neta disse que eu falo mais do carro do que dela. Ela tem razão!',
+      'Vou te contar um segredo: o freio de mão nunca funcionou. Agora funciona!',
+      'Você é o único mecânico em quem eu confio. Pode me chamar de Zé, só Zé.',
+    ],
+    gifts: { 3: { coins: 300 }, 5: { crate: 'prata' } },
+  },
+  {
+    id: 'cida', name: 'Vó Cida', lvl: 2, bio: 'Faz o melhor bolo de fubá do bairro e não perde a novela.',
+    face: { skin: '#f1c09a', hair: '#d8dce4', style: 'coque', glasses: true },
+    car: { type: 'hatch', color: 'rosa' }, kinds: ['wash', 'repair'],
+    lines: [
+      'Meu filho, o carro está fazendo um barulhinho... tipo "tec tec tec".',
+      'Trouxe bolo de fubá para a equipe! Ainda está quentinho.',
+      'Meu falecido Alfredo também era mecânico. Você me lembra ele.',
+      'Contei para as amigas do bingo da sua oficina. Prepare-se!',
+      'Você agora é meu neto de coração. Domingo tem almoço lá em casa!',
+    ],
+    gifts: { 3: { coins: 250 }, 5: { crate: 'prata' } },
+  },
+  {
+    id: 'tiao', name: 'Tião do Frete', lvl: 2, bio: 'Faz frete com a picape pela cidade inteira, de sol a sol.',
+    face: { skin: '#8a5a3a', hair: '#1f1f24', style: 'curto', hat: '#2f7bea', mustache: true },
+    car: { type: 'pickup', color: 'verde' }, kinds: ['repair', 'fuel'],
+    lines: [
+      'Rapidinho, chefe! Tenho uma geladeira para entregar em meia hora.',
+      'Essa picape já carregou mudança, piano e até um bode. Não pergunta.',
+      'Indiquei você para os caminhoneiros da estrada. Vai lotar aqui!',
+      'Fiz um frete para a pista de corrida. Vi uns carros lindos lá!',
+      'Se precisar de qualquer coisa, frete de graça para você. Palavra de Tião!',
+    ],
+    gifts: { 3: { coins: 350 }, 5: { crate: 'prata' } },
+  },
+  {
+    id: 'marlene', name: 'Dona Marlene', lvl: 3, bio: 'Leva a criançada da escola na van amarela todo dia.',
+    face: { skin: '#c98a5e', hair: '#3a2a1e', style: 'coque', glasses: true },
+    car: { type: 'van', color: 'amarelo' }, kinds: ['repair', 'fuel', 'wash'],
+    lines: [
+      'As crianças pintaram a van de canetinha de novo. Tem jeito?',
+      'Hoje é aniversário do Pedrinho! Ele pediu para ver a oficina.',
+      'Uma mãe reclamou que a van é mais limpa que a casa dela. Obrigada!',
+      'As crianças fizeram um desenho de você. Está na geladeira da escola.',
+      'Você é oficialmente o mecânico da escola. Tem até crachá!',
+    ],
+    gifts: { 3: { coins: 400 }, 5: { crate: 'prata' } },
+  },
+  {
+    id: 'pires', name: 'Sargento Pires', lvl: 4, bio: 'Policial rodoviário. Gosta de tudo em ordem e no horário.',
+    face: { skin: '#8a5a3a', hair: '#1f1f24', style: 'curto', hat: '#1d2b4f' },
+    car: { type: 'sedan', color: 'branco', decal: 'faixa' }, kinds: ['repair', 'fuel'],
+    lines: [
+      'Vistoria de rotina. Brincadeira! O pneu furou numa perseguição.',
+      'Sua oficina passou na fiscalização. Nota dez em organização.',
+      'Peguei um motorista a 180 por hora... de bicicleta. Não acreditei.',
+      'O comandante quer trazer a frota inteira para cá.',
+      'Considere-se condecorado: Mecânico de Honra da Rodoviária!',
+    ],
+    gifts: { 3: { coins: 500 }, 5: { crate: 'ouro' } },
+  },
+  {
+    id: 'ritinha', name: 'Ritinha Racer', lvl: 4, bio: 'Pilota nos fins de semana e vive no limite do conta-giros.',
+    face: { skin: '#f6d2b4', hair: '#c98a2a', style: 'rabo' },
+    car: { type: 'esportivo', color: 'vermelho', wheels: 'esportiva', spoiler: 'grande' }, kinds: ['custom', 'repair'],
+    lines: [
+      'Preciso desse carro voando até sábado. Tem corrida!',
+      'Ganhei a bateria! Seu acerto de suspensão fez toda a diferença.',
+      'Ouvi dizer que você tem uma pista... topa um racha amistoso?',
+      'Quebrei o recorde da volta! Quero te dar um pedaço do troféu.',
+      'Quando eu for campeã nacional, seu nome vai no meu macacão.',
+    ],
+    gifts: { 3: { crate: 'bronze' }, 5: { crate: 'ouro' } },
+  },
+  {
+    id: 'kaio', name: 'Kaio Influencer', lvl: 5, bio: 'Tudo vira post. Quer o carro mais chamativo da cidade.',
+    face: { skin: '#f1c09a', hair: '#ff6fb5', style: 'topete', shades: true },
+    car: { type: 'esportivo', color: 'rosa' }, kinds: ['custom'],
+    lines: [
+      'E aí, galera! Hoje estou na Oficina Nitro! Faz um carro que dê view!',
+      'O vídeo bombou! 2 milhões de views. Você está famoso!',
+      'Meus seguidores querem saber o nome do seu pintor. É segredo?',
+      'Vou fazer uma collab: "Um dia como mecânico". Topa?',
+      'Você é o maior parceiro do canal. Esse carro é a nossa marca!',
+    ],
+    gifts: { 3: { fame: 15 }, 5: { crate: 'ouro' } },
+  },
+  {
+    id: 'augusto', name: 'Dr. Augusto', lvl: 6, bio: 'Advogado exigente. Paga muito bem, mas cobra perfeição.',
+    face: { skin: '#c98a5e', hair: '#7a7a7a', style: 'curto', glasses: true },
+    car: { type: 'sedan', color: 'preto', wheels: 'cromada' }, kinds: ['custom', 'wash'],
+    lines: [
+      'Espero o serviço impecável. Tenho audiência em uma hora.',
+      'Hm. Aceitável. Muito aceitável, na verdade.',
+      'Um cliente meu perguntou onde mando o carro. Indiquei você.',
+      'Confesso: já não confio em outra oficina. Não espalhe.',
+      'Considere-me um amigo. E um cliente para a vida toda.',
+    ],
+    gifts: { 3: { coins: 900 }, 5: { crate: 'ouro' } },
+  },
+];
+
+// Eventos semanais (mudam pela semana do calendário).
+export const EVENTS = [
+  { id: 'neon', name: 'Semana do Neon', color: '#ff4fd8', desc: 'Clientes loucos por neon! Personalizações com neon valem o dobro de pontos.', points: { custom_neon: 20, custom: 8, deliver: 2 }, neonBoost: true, reward: { part: 'neon:arcoiris' } },
+  { id: 'lama', name: 'Rali da Lama', color: '#a0703a', desc: 'Chove muito e os carros chegam enlameados. Lavagens valem pontos.', points: { wash: 12, deliver: 2, custom: 5 }, rainBoost: 2.5, reward: { part: 'decal:chamas' } },
+  { id: 'nitro', name: 'Copa Nitro', color: '#ff8a2a', desc: 'Corridas, guinchos e preparação valem pontos. Corridas dão caixas melhores.', points: { race: 30, win: 40, tune: 10, tow: 25, deliver: 2 }, crateBoost: true, reward: { part: 'wheels:raio' } },
+  { id: 'pastel', name: 'Festival do Pastel', color: '#ffb300', desc: 'A loja vende o dobro. Abastecer e recolher a loja valem pontos.', points: { fuel: 10, loja: 8, deliver: 2 }, lojaBoost: 2, reward: { part: 'color:perolado' } },
+];
+export const EVENT_MILESTONES = [
+  { pts: 100, coins: 500 },
+  { pts: 250, crate: 'prata' },
+  { pts: 500, part: true },
+];
+
+// Equipe contratável.
+export const STAFF_ROLES = {
+  mecanico: { name: 'Mecânico Relâmpago', icon: 'motor', desc: 'Elevadores mais rápidos', effect: 'repairSpeed', base: 0.25, cost: 800, lvl: 3 },
+  lavador: { name: 'Lavador Turbo', icon: 'lavagem', desc: 'Lava-jato mais rápido', effect: 'washSpeed', base: 0.3, cost: 700, lvl: 3 },
+  pintora: { name: 'Pintora Caprichosa', icon: 'estilo', desc: 'Gorjetas maiores na personalização', effect: 'customTip', base: 0.15, cost: 1200, lvl: 3 },
+  frentista: { name: 'Frentista Simpático', icon: 'bomba', desc: 'Posto paga mais', effect: 'fuelPay', base: 0.25, cost: 900, lvl: 4 },
+  gerente: { name: 'Gerente Carismática', icon: 'face-ok', desc: 'Clientes mais pacientes e mais fama', effect: 'patience', base: 0.3, fame: 10, cost: 1500, lvl: 4 },
+  vendedor: { name: 'Vendedor da Loja', icon: 'moeda', desc: 'Loja de peças rende mais', effect: 'lojaRate', base: 0.4, cost: 1000, lvl: 4 },
+  restaurador: { name: 'Restaurador Artesão', icon: 'restauro', desc: 'Restauração mais rápida', effect: 'restoreSpeed', base: 0.3, cost: 1800, lvl: 5 },
+  piloto: { name: 'Piloto de Testes', icon: 'corrida', desc: 'Seus carros correm mais', effect: 'raceTop', base: 0.6, cost: 2000, lvl: 6 },
+};
+export const STAFF_NAMES = ['Juninho', 'Paty', 'Beto', 'Lu', 'Careca', 'Dani', 'Feijão', 'Rose', 'Tuca', 'Neide', 'Gugu', 'Bia'];
+export const STAFF_LEVEL_MULT = [1, 1.6, 2.2];
+export const TEAM_SIZE = [[3, 1], [5, 2], [7, 3], [9, 4], [11, 5], [13, 6], [15, 8]];
+export const UNIFORMS = ['#2f7bea', '#e8473c', '#46c35a', '#ff8a2a', '#8a5cf0', '#1d2b4f', '#ff4fa3', '#ffc93c'];

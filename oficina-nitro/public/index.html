@@ -19,6 +19,7 @@
 </head>
 <body>
   <canvas id="scene"></canvas>
+  <div id="rainFx"></div>
   <div id="bubbles"></div>
   <div id="fly"></div>
 
@@ -39,6 +40,13 @@
     <div id="tip" hidden></div>
     <button id="btnMissions" class="round-btn blue" aria-label="Missões"></button>
     <button id="btnGarage" class="round-btn orange" aria-label="Garagem" hidden></button>
+    <button id="btnMenu" class="round-btn purple" aria-label="Menu"></button>
+    <button id="eventPill" aria-label="Evento da semana"></button>
+    <div id="dialog" hidden></div>
+    <div id="visitBar" hidden>
+      <div><b id="visitName" class="ol"></b><span id="visitInfo"></span></div>
+      <button id="visitBack" class="btn red">Voltar para casa</button>
+    </div>
     <button id="btnShop" class="round-btn yellow" aria-label="Construir"></button>
     <div id="buildBar" hidden>
       <span id="buildLabel" class="ol"></span>
@@ -64,6 +72,17 @@
     <ol id="racePos"></ol>
     <div id="raceCount"></div>
     <button id="nitroBtn" aria-label="Nitro"><span class="ol">NITRO</span><i></i></button>
+  </div>
+
+  <div id="tow" hidden>
+    <div id="towTop" class="ol"><b>Chamado de guincho</b><span id="towCoins"></span><span id="towHits"></span></div>
+    <div id="towBar"><i id="towProg"></i></div>
+    <div id="towCount"></div>
+    <div id="towBtns">
+      <button id="towUp" class="btn blue" aria-label="Faixa de cima">▲</button>
+      <button id="towDown" class="btn blue" aria-label="Faixa de baixo">▼</button>
+    </div>
+    <div id="towHelp">Troque de faixa: ▲ ▼, setas do teclado ou deslize o dedo</div>
   </div>
 
   <div id="modal" hidden><div id="modalBox"></div></div>

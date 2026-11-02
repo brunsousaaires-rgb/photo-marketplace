@@ -1,11 +1,15 @@
 import { World, baySpot, TRACK_PATH } from './world.js';
 import * as L from './logic.js';
-import { BUILDINGS, PARTS, PART_TABS, PART_LABEL, GRID_H, TILE, BUILDING_MAX_LEVEL, LAND, TRACK, xpNeed, part, limitAt } from './data.js';
+import { BUILDINGS, PARTS, PART_TABS, PART_LABEL, GRID_H, TILE, BUILDING_MAX_LEVEL, LAND, TRACK, xpNeed, part, limitAt, RARITY, CRATES } from './data.js';
 import { Sfx } from './audio.js';
-import { icon, faceFor } from './icons.js';
+import { icon, faceFor, portrait } from './icons.js';
 import { Thumbs, Viewer } from './preview.js';
 import { openGarage } from './garage.js';
 import { Race } from './race.js';
+import { TowRun } from './tow.js';
+import { Online } from './online.js';
+import { openSocial, publishProfile } from './social.js';
+import * as X from './extras.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n) => Math.floor(n).toLocaleString('pt-BR');
@@ -107,6 +111,7 @@ function closeModal() {
   $('#modal').hidden = true;
   $('#modalBox').innerHTML = '';
   delete $('#modalBox').dataset.sticky;
+  delete $('#modalBox').dataset.view;
   modalOpen = null;
   was?.onClose?.();
   if (modalQueue.length) setTimeout(() => openModal(...modalQueue.shift()), 120);
@@ -121,12 +126,20 @@ function head(title, cls = '', closable = true) {
 }
 $('#modalBox').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) { sfx.play('click'); closeModal(); } });
 
+const online = new Online();
 const ctx = {
   get state() { return state; },
-  world, sfx, thumbs, viewer, coin, fmt, head, toast, flyCoins, openModal, closeModal, rerender,
+  world, sfx, thumbs, viewer, coin, fmt, head, toast, flyCoins, openModal, closeModal, rerender, online, icon,
+  lastCustom: null,
   afterChange: () => afterChange(),
   startRace: (e) => startRace(e),
   buyTrack: () => askTrack(),
+  enterVisit: (p, name) => enterVisit(p, name),
+  loadState: (s) => loadState(s),
+  openPhoto: (spec, title) => X.openPhoto(ctx, spec, title),
+  handleLevels: (lv) => handleLevels(lv),
+  get mode() { return mode; },
+  setMode: (m) => { mode = m; setHudMode(); },
 };
 
 // ---------- HUD ----------
@@ -138,7 +151,8 @@ function updateHud(dt) {
   const fame = L.fame(state);
   const ready = state.missions.filter((m) => m.progress >= m.target).length;
   const showGarage = state.level >= 5 || state.garage.length > 0 || state.projects.length > 0;
-  const key = [Math.round(shownCoins), state.level, state.xp, fame, ready, showGarage, mode].join('|');
+  const crates = Object.values(state.crates || {}).reduce((a, n) => a + n, 0);
+  const key = [Math.round(shownCoins), state.level, state.xp, fame, ready, showGarage, mode, crates, state.event?.points, state.event?.claimed?.length].join('|');
   if (key === lastHud) return;
   lastHud = key;
   $('#coins').textContent = fmt(shownCoins);
@@ -149,6 +163,7 @@ function updateHud(dt) {
   $('#missionDot').hidden = !ready;
   $('#missionDot').textContent = ready;
   $('#btnGarage').hidden = !showGarage || mode !== 'play';
+  X.updateHudExtras(ctx);
 }
 
 function setHudMode() {
@@ -159,13 +174,18 @@ function setHudMode() {
   $('#buildBar').hidden = mode !== 'place';
   $('#custom').hidden = mode !== 'custom';
   $('#lvl').hidden = mode === 'race';
-  $('#res').hidden = mode === 'race';
+  $('#res').hidden = mode === 'race' || mode === 'tow';
+  $('#btnMenu').hidden = !play;
+  $('#eventPill').hidden = !play;
+  $('#visitBar').hidden = mode !== 'visit';
+  if (mode === 'visit' || mode === 'tow') { $('#lvl').hidden = mode === 'tow'; $('#btnShop').hidden = true; $('#btnMissions').hidden = true; $('#btnGarage').hidden = true; }
   lastHud = '';
 }
 
 $('#btnShop').innerHTML = `<span class="ico">${icon('construir')}</span><span class="lbl ol">Construir</span>`;
 $('#btnMissions').innerHTML = `<span class="ico">${icon('missoes')}</span><span class="lbl ol">Missões</span><span class="dot" id="missionDot" hidden></span>`;
 $('#btnGarage').innerHTML = `<span class="ico">${icon('garagem')}</span><span class="lbl ol">Garagem</span>`;
+$('#btnMenu').innerHTML = `<span class="ico">${icon('menu')}</span><span class="lbl ol">Menu</span><span class="dot" id="menuDot" hidden></span>`;
 
 let tipText = null, hintUntil = 0, hintText = null;
 const HINTS = [
@@ -173,6 +193,11 @@ const HINTS = [
   ['posto', (s) => s.level >= 4 && !L.has(s, 'posto'), 'Novidade: o Posto de Combustível está no menu Construir ⛽'],
   ['resto', (s) => s.level >= 5 && !L.has(s, 'restauracao'), 'Novidade: Box de Restauração! Compre sucatas no leilão da Garagem e restaure 🛠️'],
   ['pista', (s) => s.level >= 6 && !s.track, 'Novidade: a Pista de Corrida! Toque na placa PISTA atrás da oficina 🏁'],
+  ['evento', (s) => s.level >= 2, `Evento da semana: ${L.currentEvent().name}! Toque no aviso colorido no alto da tela 🎉`],
+  ['equipe', (s) => s.level >= 3 && !s.staff.length, 'Novidade: contrate sua equipe no Menu → Equipe 👷'],
+  ['guincho', (s) => s.level >= 4 && !L.has(s, 'guincho'), 'Novidade: construa a Base do Guincho e atenda chamados pela cidade 🚚'],
+  ['caixa', (s) => Object.values(s.crates || {}).some((n) => n > 0), 'Você ganhou uma caixa de prêmio! Abra no Menu → Caixas 🎁'],
+  ['online', (s) => s.level >= 3 && online.on, 'Jogue com os amigos: Menu → Online para visitar oficinas e votar no concurso 🏆'],
 ];
 function tutorial() {
   const s = state.stats;
@@ -247,7 +272,8 @@ function updateBubbles() {
       if (!v || v.path.length) continue;
       const pct = Math.max(0, c.patience / c.maxPatience);
       const col = pct > 0.5 ? '#46c35a' : pct > 0.25 ? '#ffb800' : '#f0503c';
-      const html = `<div class="face">${icon(faceFor(pct))}<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" stroke="#e3e8f0"/><circle cx="18" cy="18" r="16" stroke="${col}" stroke-dasharray="${(pct * 100.5).toFixed(0)} 200" transform="rotate(-90 18 18)"/></svg></div><div class="want">${wantsHtml(c)}</div><span class="price">${coin(c.job.pay)}</span>${c.vip ? `<span class="vipb">${icon('vip')}</span>` : ''}`;
+      const ch = c.char ? X.charById(c.char) : null;
+      const html = `<div class="face ${ch ? 'char' : ''}">${ch ? portrait(ch.face) : icon(faceFor(pct))}<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" stroke="#e3e8f0"/><circle cx="18" cy="18" r="16" stroke="${col}" stroke-dasharray="${(pct * 100.5).toFixed(0)} 200" transform="rotate(-90 18 18)"/></svg></div><div class="want">${wantsHtml(c)}</div><span class="price">${coin(c.job.pay)}</span>${c.vip ? `<span class="vipb">${icon('vip')}</span>` : ''}${ch ? `<span class="chname">${ch.name}</span>` : ''}${c.towed ? '<span class="chname">Rebocado</span>' : ''}`;
       setBubble(seen, 'c' + c.id, screenOf(v.g.position, 2.7), 'wait' + (pct < 0.25 ? ' urgent' : '') + (c.vip ? ' vip' : ''), html, 'assign', c.id);
     }
   }
@@ -276,6 +302,9 @@ function updateBubbles() {
         } else if (j.state === 'custom') {
           setBubble(seen, 'b' + b.id, pos, 'custom', `<span class="jobic">${icon('estilo')}</span>Personalizar`, 'custom', b.id);
         }
+      }
+      if (b.type === 'guincho' && state.towCall && mode === 'play') {
+        setBubble(seen, 't' + b.id, screenOf(v.g.position, 4.2), 'done tow', `<span class="jobic">${icon('telefone')}</span>Chamado! <span class="t">${Math.ceil(state.towCall.expires)}s</span>`, 'tow', b.id);
       }
       if (b.type === 'loja' && b.stored >= 5 && mode === 'play') {
         const full = b.stored >= BUILDINGS.loja.cap[b.level - 1];
@@ -308,6 +337,7 @@ $('#bubbles').addEventListener('pointerdown', (e) => {
     case 'collect': collectJob(id); break;
     case 'custom': openCustom(id); break;
     case 'loja': collectLoja(id); break;
+    case 'tow': startTow(); break;
     case 'land': askLand(); break;
     case 'track': askTrack(); break;
   }
@@ -361,6 +391,7 @@ function collectJob(bid) {
     setTimeout(() => sfx.play('horn'), 250);
     world.carLeave(r.c.id, true, true);
   }
+  if (r.friend) X.showFriend(ctx, r.friend);
   handleLevels(r.levels);
   afterChange();
 }
@@ -493,6 +524,7 @@ function startRace(entry) {
           <div class="statline" style="width:100%"><span>Prêmio</span><b>${coin(res.prize)}</b></div>
           <div class="statline" style="width:100%"><span>Experiência</span><b class="up">+${res.xp} XP</b></div>
           ${res.trophy ? '<div class="statline" style="width:100%"><span>Troféu (+3 de fama)</span><b class="up">🏆</b></div>' : ''}
+          ${res.crate ? `<div class="statline" style="width:100%"><span>${CRATES[res.crate].name}</span><b class="up">🎁</b></div>` : ''}
           <div class="row" style="width:100%"><button class="btn green" id="raceOk">${res.prize ? `RECEBER ${coin(res.prize)}` : 'OK'}</button></div>
         </div>`;
       box.querySelector('#raceOk').onclick = () => {
@@ -551,10 +583,11 @@ function renderCustom() {
   const wanted = new Map(c.job.reqs.map((r) => [r.part, r.value]));
   $('#tabs').innerHTML = PART_TABS.map((t) => `<button class="tab ${custom.tab === t.id ? 'on' : ''}" data-tab="${t.id}">${icon(t.icon)}<span>${t.name}</span>${wanted.has(t.id) ? '<b class="wantdot"></b>' : ''}</button>`).join('');
   $('#options').innerHTML = PARTS[custom.tab].map((p) => {
-    const locked = p.lvl > state.level;
+    const locked = !L.partAvailable(state, custom.tab, p.id);
     const on = sp[custom.tab] === p.id;
     const want = wanted.get(custom.tab) === p.id;
-    return `<button class="opt ${on ? 'on' : ''} ${want ? 'want' : ''} ${locked ? 'locked' : ''}" data-opt="${p.id}">${optVisual(custom.tab, p)}<span>${p.name}</span>${locked ? `<span class="lock">🔒 Nv ${p.lvl}</span>` : ''}</button>`;
+    const rare = p.rare ? ` rare r-${p.rare}` : '';
+    return `<button class="opt ${on ? 'on' : ''} ${want ? 'want' : ''} ${locked ? 'locked' : ''}${rare}" data-opt="${p.id}">${optVisual(custom.tab, p)}<span>${p.name}</span>${locked ? `<span class="lock">${p.rare ? `🎁 ${RARITY[p.rare].name}` : `🔒 Nv ${p.lvl}`}</span>` : p.rare ? `<span class="lock rlabel">${RARITY[p.rare].name}</span>` : ''}</button>`;
   }).join('');
   $('#deliverBtn').innerHTML = `ENTREGAR ${coin(ev.coins)}`;
 }
@@ -571,7 +604,7 @@ $('#options').addEventListener('click', (e) => {
   const o = e.target.closest('[data-opt]');
   if (!o || !custom) return;
   const p = part(custom.tab, o.dataset.opt);
-  if (p.lvl > state.level) { sfx.play('error'); toast(`🔒 Libera no nível ${p.lvl}`); return; }
+  if (!L.partAvailable(state, custom.tab, p.id)) { sfx.play('error'); toast(p.rare ? `🎁 Peça ${RARITY[p.rare].name}: ganhe em caixas de prêmio` : `🔒 Libera no nível ${p.lvl}`); return; }
   if (custom.spec[custom.tab] === p.id) return;
   custom.spec[custom.tab] = p.id;
   world.replaceCar(custom.cid, custom.spec);
@@ -604,9 +637,12 @@ $('#deliverBtn').addEventListener('click', () => {
         <div class="statline" style="width:100%"><span>Serviço (${r.met}/${r.total} pedidos)</span><b>${coin(r.base)}</b></div>
         ${r.tip ? `<div class="statline" style="width:100%"><span>Gorjeta${r.extras ? ` (${r.extras} extra${r.extras > 1 ? 's' : ''})` : ''}</span><b class="up">+${coin(r.tip)}</b></div>` : ''}
         <div class="statline" style="width:100%"><span>Experiência</span><b class="up">+${r.xp} XP</b></div>
-        <button class="btn green" id="okDeliver" style="width:100%">RECEBER ${coin(r.coins)}</button>
+        <div class="row" style="width:100%"><button class="btn blue" id="photoDeliver">${icon('foto', 'bico')} Foto</button><button class="btn green" id="okDeliver">RECEBER ${coin(r.coins)}</button></div>
       </div>`;
+    ctx.lastCustom = { ...r.spec };
+    box.querySelector('#photoDeliver').onclick = () => X.photoPreview(ctx, r.spec, `Carro de cliente${r.c.char ? ': ' + X.charById(r.c.char).name : ''}`);
     box.querySelector('#okDeliver').onclick = () => {
+      if (r.friend) setTimeout(() => X.showFriend(ctx, r.friend), 600);
       closeModal();
       const p = screenOf(pos, 2);
       flyCoins(p, r.coins);
@@ -807,6 +843,9 @@ function openMissions() {
 $('#btnShop').addEventListener('click', () => { sfx.play('click'); openShop(); });
 $('#btnMissions').addEventListener('click', () => { sfx.play('click'); openMissions(); });
 $('#btnGarage').addEventListener('click', () => { sfx.play('click'); openGarage(ctx); });
+$('#btnMenu').addEventListener('click', () => { sfx.play('click'); X.openMenu(ctx, { openSocial: () => openSocial(ctx) }); });
+$('#eventPill').addEventListener('click', () => { sfx.play('click'); X.openEvent(ctx); });
+$('#visitBack').addEventListener('click', () => { sfx.play('click'); exitVisit(); });
 const setSoundIcons = () => {
   $('#btnMute').innerHTML = icon(sfx.muted ? 'mudo' : 'som');
   $('#btnMusic').innerHTML = icon('musica');
@@ -869,7 +908,7 @@ canvas.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); 
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (mode !== 'custom' && mode !== 'race') world.zoomBy(Math.pow(1.0018, -e.deltaY)); }, { passive: false });
 
 function onTap(x, y) {
-  if (mode === 'custom' || mode === 'race') return;
+  if (mode === 'custom' || mode === 'race' || mode === 'tow' || mode === 'visit') return;
   if (mode === 'place') {
     const t = world.tileAt(x, y, placing.type);
     if (!t) return;
@@ -893,6 +932,7 @@ function onTap(x, y) {
 
 function tapBuilding(b) {
   if (b.build) return speedUp(b.id);
+  if (b.type === 'guincho' && state.towCall) return startTow();
   if (b.job) {
     if (b.job.state === 'work') return speedUp(b.id);
     if (b.job.state === 'done') return collectJob(b.id);
@@ -913,6 +953,45 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && mode === 'place') confirmPlacement();
 });
 
+// ---------- guincho ----------
+let tow = null;
+function startTow() {
+  if (mode !== 'play' || modalOpen) return;
+  const call = L.startTow(state);
+  if (!call) return;
+  sfx.play('click');
+  mode = 'tow';
+  setHudMode();
+  tow = new TowRun(ctx, call, (res) => {
+    tow = null;
+    mode = 'play';
+    setHudMode();
+    if (res.customer) world.carArrive(res.customer);
+    afterChange();
+    X.towResult(ctx, res);
+  });
+}
+
+// ---------- visita a outra oficina ----------
+function enterVisit(p, name) {
+  mode = 'visit';
+  setHudMode();
+  world.enterVisit(p);
+  $('#visitName').textContent = name;
+  $('#visitInfo').innerHTML = `Nível ${p.level || 1} · ⭐ ${p.fame || 0} · 🏆 ${p.trophies || 0}`;
+}
+function exitVisit() {
+  world.exitVisit();
+  mode = 'play';
+  setHudMode();
+}
+
+function loadState(s) {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(L.migrate(s))); } catch {}
+  mode = 'race'; // impede o save automático de sobrescrever antes de recarregar
+  location.reload();
+}
+
 // ---------- loop ----------
 function handleEvents() {
   for (const e of events) {
@@ -927,6 +1006,13 @@ function handleEvents() {
       world.carLeave(e.c.id, false, false);
     } else if (e.type === 'done') {
       sfx.play('pop');
+    } else if (e.type === 'tow_call') {
+      sfx.play('phone');
+      toast('📞 Chamado de guincho! Toque na Base do Guincho');
+    } else if (e.type === 'tow_miss') {
+      toast('O chamado de guincho foi para outra empresa 😕');
+    } else if (e.type === 'rain_start') {
+      toast('🌧️ Começou a chover! Vem muito carro sujo para o lava-jato');
     } else if (e.type === 'built') {
       sfx.play('built');
       world.sync(state);
@@ -940,12 +1026,21 @@ function handleEvents() {
 
 let last = performance.now(), tipT = 0, lastNight = -1;
 function frame(now) {
+  requestAnimationFrame(frame);
+  try { step(now); } catch (err) { console.error(err); }
+}
+
+function step(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   L.tick(state, dt, events);
   if (events.length) handleEvents();
   if (race) race.update(dt);
+  if (tow) tow.update(dt);
   world.update(dt, state);
+  sfx.setRain(world.rainK);
+  $('#rainFx').classList.toggle('on', !!state.weather?.rain && mode !== 'visit');
+  X.tickOnline(ctx, dt);
   if (Math.abs(world.night - lastNight) > 0.03) { lastNight = world.night; sfx.setNight(world.night); }
   updateBubbles();
   updateHud(dt);
@@ -953,7 +1048,6 @@ function frame(now) {
   if (tipT <= 0) { tipT = 0.3; updateTip(); }
   saveT -= dt;
   if (saveT <= 0) { saveT = 4; save(); }
-  requestAnimationFrame(frame);
 }
 
 addEventListener('visibilitychange', () => { if (document.hidden) save(); });
@@ -1001,7 +1095,8 @@ if (daily) {
 }
 
 // Depuração no console.
+X.afterBoot(ctx);
 window.oficina = {
-  get state() { return state; }, world, L, ctx, assignCustomer, openCustom, collectJob, speedUp, openGarage: () => openGarage(ctx), startRace,
+  get state() { return state; }, world, L, ctx, startTow, enterVisit, exitVisit, assignCustomer, openCustom, collectJob, speedUp, openGarage: () => openGarage(ctx), startRace,
   reset() { localStorage.removeItem(SAVE_KEY); location.reload(); },
 };

@@ -32,9 +32,23 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 | **Leilão → Restauração → Garagem** | Compre uma sucata, restaure (etapas: funilaria, pintura, montagem…), personalize, prepare motor, turbo e pneus. Depois **corra** ou **venda** com lucro |
 | Corre na pista | Contagem regressiva, 4 carros, câmera seguindo você e botão **NITRO** (3 cargas). Prêmios e troféus, que dão fama |
 
+| Atende **clientes conhecidos** | 8 personagens com retrato, carro próprio e uma história em 5 capítulos (Seu Zé, Vó Cida, Tião do Frete, Dona Marlene, Sargento Pires, Ritinha Racer, Kaio Influencer, Dr. Augusto). A amizade dá presentes e aparece no **Álbum** |
+| Atende **chamados de guincho** | Minijogo: dirija o guincho pela avenida trocando de faixa, desvie de cones, barreiras, óleo e carros, pegue moedas e reboque o carro, que vira um conserto bem pago |
+| Abre **caixas de prêmio** | Bronze, prata e ouro (corridas, evento, amigos, guincho perfeito e concurso) com **13 peças raras**: cromado, camaleão, perolado, fosco, rodas Turbina e Aro Neon, Asa Drift, chamas, relâmpago, xadrez, neon arco-íris… Peça rara como extra dá gorjeta muito maior |
+| Joga o **evento da semana** | Muda sozinho pela semana do calendário: Semana do Neon, Rali da Lama, Copa Nitro e Festival do Pastel, com pontos e peça exclusiva |
+| Contrata a **equipe** | 8 funcionários com habilidades (mecânico, lavador, pintora, frentista, gerente, vendedor, restaurador e piloto), treino até nível 3 e cor de uniforme |
+| Enfrenta a **chuva** | Chove de verdade na cena, com céu escuro, som de chuva e muito carro enlameado para o lava-jato |
+| Tira **fotos** | Estúdio com 4 cenários e 4 ângulos para salvar a foto do carro |
+| Joga **online** | Visita e curte a oficina dos amigos, desafia o melhor carro deles na pista, vota no **concurso semanal** do carro mais bonito (os 3 primeiros ganham caixas) e salva o jogo na nuvem |
+
 **Para o jogador voltar:** missões que se renovam, presente diário com sequência de dias, loja e obras que continuam enquanto você está fora (até 8 h), dicas de novidades a cada nível, campeonatos cada vez mais difíceis e uma coleção de carros para completar.
 
 **Som:** música de fundo própria (composta e tocada pelo jogo, sem arquivos), mais abafada à noite, passarinhos de dia e grilos à noite. Música e efeitos têm botões separados.
+
+## 🌐 Online
+
+- **No link publicado do Claude:** o jogo usa o banco de dados compartilhado do próprio link. Compartilhe com os amigos com permissão de **Contribuidor** e todos aparecem nas Oficinas, no concurso e nos desafios. O salvamento na nuvem é privado de cada pessoa.
+- **Rodando com `npm start`:** o `server.js` oferece a mesma API em `/api` e guarda tudo em `data/online.json`. Cada navegador recebe um id e um segredo, e só quem tem o segredo escreve nos próprios dados.
 
 ## 🧱 Arquitetura
 
@@ -49,14 +63,14 @@ public/src/
   preview.js  miniaturas 3D das peças/construções e visualizador giratório da garagem
   icons.js    ícones desenhados em SVG
   audio.js    música e efeitos sintetizados (WebAudio)
+  tow.js      minijogo do guincho
+  photo.js    estúdio de fotos
+  online.js   camada online (banco do link publicado ou API do server.js) e nuvem
+  social.js   telas online: oficinas, visita, curtidas, desafios, concurso, perfil
+  extras.js   menu, clientes fixos, álbum, caixas, peças raras, evento, equipe, foto
   main.js     interface: balões, personalização, loja, missões, níveis, toque/arrastar/zoom, salvamento
 ```
 
-## 🌐 Caminho para o online
+## 🔜 Próximos passos
 
-Como `logic.js` é puro e o estado é JSON, o online entra sem reescrever o jogo:
-
-1. **Conta e salvamento na nuvem:** o estado vai para um banco (Supabase/Postgres), e o jogador continua de qualquer aparelho.
-2. **Servidor valida as ações:** o cliente envia "construir X em (x,z)", "entregar personalização Y" e o servidor roda o mesmo `logic.js` para conferir (anti-trapaça).
-3. **Corridas contra amigos:** os rivais da pista passam a ser carros reais de outros jogadores (fantasmas das melhores voltas).
-4. **Social:** visitar a oficina dos amigos, ranking de fama e uma vitrine semanal dos carros mais bonitos, com votação.
+O online já existe. Para um jogo grande, o passo seguinte é o servidor validar as ações com o mesmo `logic.js` (anti-trapaça), já que hoje cada jogador calcula as próprias moedas.

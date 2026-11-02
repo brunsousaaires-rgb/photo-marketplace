@@ -74,7 +74,7 @@ export class Thumbs {
           return g;
         }, [1, 1.0, 1.1], 128);
       case 'decal':
-        return this.shot('d:' + id, () => buildCar({ ...BASE_CAR, decal: id }, { driver: false }), [1, 1.4, 0.9], 128);
+        return this.shot('d:' + id, () => buildCar({ ...BASE_CAR, decal: id }, { driver: false }), [1, 0.85, 0.55], 128);
       default:
         return '';
     }

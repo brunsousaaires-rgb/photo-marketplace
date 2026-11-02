@@ -92,7 +92,7 @@ export class Race {
         setTimeout(() => { if ($('#raceCount')) $('#raceCount').innerHTML = ''; }, 900);
       }
       this.place(dt);
-      ctx.world.followCam.pos.copy(this.me.g.position);
+      if (ctx.world.followCam) ctx.world.followCam.pos.copy(this.me.g.position);
       return;
     }
     for (const r of this.racers) {
@@ -121,8 +121,10 @@ export class Race {
       }
     }
     this.place(dt);
-    ctx.world.followCam.pos.copy(this.me.g.position);
-    ctx.world.followCam.zoom = this.me.nitroT > 0 ? 1.3 : 1.5;
+    if (ctx.world.followCam) {
+      ctx.world.followCam.pos.copy(this.me.g.position);
+      ctx.world.followCam.zoom = this.me.nitroT > 0 ? 1.3 : 1.5;
+    }
     this.updateNitroBtn();
     // Placar ao vivo.
     const order = [...this.finished, ...this.racers.filter((r) => !r.done).sort((a, b) => b.s - a.s)];
@@ -137,7 +139,7 @@ export class Race {
     this.over = true;
     const ctx = this.ctx;
     const pos = this.me.place || order.indexOf(this.me) + 1;
-    const res = L.finishRace(ctx.state, this.tier.id, pos);
+    const res = L.finishRace(ctx.state, this.tier, pos);
     for (const r of this.racers) ctx.world.removeObject(r.g);
     ctx.world.raceHype = false;
     ctx.world.unfocus();
