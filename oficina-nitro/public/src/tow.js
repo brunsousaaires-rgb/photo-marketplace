@@ -1,7 +1,7 @@
 // Minijogo do guincho: dirija pela avenida trocando de faixa, desvie dos obstáculos,
 // pegue moedas e reboque o carro quebrado no fim do caminho.
 import * as THREE from 'three';
-import { buildTowTruck, buildCar, buildCone, buildBarrier, buildOil, buildCoin } from './models.js';
+import { buildTowTruck, buildCar, buildCone, buildBarrier, buildOil, buildCoin, disposeCar } from './models.js';
 import { LOT_D } from './world.js';
 import * as L from './logic.js';
 
@@ -200,9 +200,10 @@ export class TowRun {
   finish() {
     const ctx = this.ctx, w = ctx.world;
     const res = L.finishTow(ctx.state, this.call, { done: true, hits: this.hits, coins: this.coins });
-    for (const o of this.objects) w.scene.remove(o.obj);
+    for (const o of this.objects) { w.scene.remove(o.obj); disposeCar(o.obj); }
     w.scene.remove(this.truck);
     w.scene.remove(this.broken);
+    disposeCar(this.truck); disposeCar(this.broken);
     w.towing = false;
     w.trafficPaused = false;
     w.unfocus();

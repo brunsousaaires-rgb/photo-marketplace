@@ -477,7 +477,7 @@ export class World {
     const sig = JSON.stringify(cars.map((c) => [c.id, c.type, c.color, c.wheels, c.spoiler, c.neon, c.decal]));
     if (v.showSig === sig) return;
     v.showSig = sig;
-    if (v.display) v.g.remove(v.display);
+    if (v.display) { v.g.remove(v.display); disposeCar(v.display); }
     v.display = new THREE.Group();
     cars.forEach((c, i) => {
       const sl = v.g.userData.slots[i];
@@ -760,6 +760,7 @@ export class World {
     g.rotation.copy(v.g.rotation);
     g.userData.pick = v.g.userData.pick;
     this.scene.remove(v.g);
+    disposeCar(v.g);
     this.scene.add(g);
     v.g = g;
     v.pop = 0;
@@ -800,6 +801,7 @@ export class World {
 
   removeObject(o) {
     this.scene.remove(o);
+    disposeCar(o);
   }
 
   // ---------- efeitos ----------
@@ -1425,6 +1427,6 @@ World.prototype.exitVisit = function () {
 };
 
 World.prototype.clearTraffic = function () {
-  for (const t of this.traffic) this.scene.remove(t.g);
+  for (const t of this.traffic) { this.scene.remove(t.g); disposeCar(t.g); }
   this.traffic = [];
 };

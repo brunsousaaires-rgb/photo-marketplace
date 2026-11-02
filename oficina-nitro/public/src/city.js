@@ -83,10 +83,13 @@ function signMesh(text, w, h, opts) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
 }
 
-// Junta tudo que é parado num bloco por material (bem menos chamadas de desenho).
+// Junta tudo que é parado num bloco por material e por REGIÃO (quadrados de 36 unidades):
+// poucas chamadas de desenho, e o que está fora da câmera nem é desenhado (culling).
+const CHUNK = 36;
 function bake(group) {
   group.updateMatrixWorld(true);
   const buckets = new Map();
+  const box3 = new THREE.Box3(), c = new THREE.Vector3();
   group.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material)) return;
     let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
@@ -95,7 +98,9 @@ function bake(group) {
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     if (!g.attributes.normal) g.computeVertexNormals();
     g.clearGroups();
-    const key = o.material.uuid + (o.castShadow ? 'c' : 'n');
+    box3.setFromObject(o).getCenter(c);
+    const big = box3.max.x - box3.min.x > CHUNK || box3.max.z - box3.min.z > CHUNK; // ruas compridas ficam inteiras
+    const key = o.material.uuid + (o.castShadow ? 'c' : 'n') + (big ? '|big' : `|${Math.floor(c.x / CHUNK)},${Math.floor(c.z / CHUNK)}`);
     if (!buckets.has(key)) buckets.set(key, { m: o.material, cast: o.castShadow, list: [] });
     buckets.get(key).list.push(g);
   });

@@ -1,6 +1,6 @@
 // Miniaturas 3D (peças, construções, carros) e o visualizador giratório da garagem.
 import * as THREE from 'three';
-import { buildCar, buildBuilding, buildWheelModel, mat } from './models.js';
+import { buildCar, buildBuilding, buildWheelModel, mat, disposeCar } from './models.js';
 
 const BASE_CAR = { type: 'esportivo', color: 'azul', wheels: 'padrao', spoiler: 'nenhum', neon: 'nenhum', decal: 'nenhum' };
 
@@ -49,6 +49,7 @@ export class Thumbs {
       this.r.render(this.scene, this.cam);
       const url = this.r.domElement.toDataURL('image/png');
       this.scene.remove(obj);
+      disposeCar(obj);
       this.cache.set(key, url);
       return url;
     } catch {
@@ -141,7 +142,7 @@ export class Viewer {
   }
 
   setCar(spec) {
-    if (this.car) this.turn.remove(this.car);
+    if (this.car) { this.turn.remove(this.car); disposeCar(this.car); }
     this.car = buildCar(spec, { driver: false });
     this.car.userData.pop = 0;
     this.turn.add(this.car);
