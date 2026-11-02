@@ -1099,4 +1099,5 @@ X.afterBoot(ctx);
 window.oficina = {
   get state() { return state; }, world, L, ctx, startTow, enterVisit, exitVisit, assignCustomer, openCustom, collectJob, speedUp, openGarage: () => openGarage(ctx), startRace,
   reset() { localStorage.removeItem(SAVE_KEY); location.reload(); },
+  advance(sec) { step(last + sec * 1000); }, // usado nos testes automáticos
 };

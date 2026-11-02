@@ -480,7 +480,7 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
   setDirt(spec.dirt || 0);
   if (spec.rust) setRust(spec.rust);
 
-  root.userData = { body, wheels, wheelR: wd.r, paint, neon, setDirt, setRust, spec: { ...spec }, length: L };
+  root.userData = { body, wheels, wheelR: wd.r, paint, neon, setDirt, setRust, spec: { ...spec }, length: L, width: W };
   return root;
 }
 

@@ -60,7 +60,8 @@ export class TowRun {
         add(c, x, lane, 'car', { v: 4 + Math.random() * 2 });
       }
       // Fileira de moedas numa faixa livre.
-      const free = [0, 1, 2].filter((l) => !this.objects.some((o) => o.lane === l && Math.abs(o.obj.position.x - x) < 3));
+      // Moedas numa faixa livre e sem carro lento vindo atrás (o carro passaria por cima delas).
+      const free = [0, 1, 2].filter((l) => !this.objects.some((o) => o.lane === l && (Math.abs(o.obj.position.x - x) < 3 || (o.kind === 'car' && o.obj.position.x > x))));
       if (free.length && Math.random() < 0.8) {
         const cl = free[Math.floor(Math.random() * free.length)];
         for (let k = 0; k < 3; k++) add(buildCoin(), x + 3 + k * 1.6, cl, 'coin');
@@ -138,7 +139,7 @@ export class TowRun {
       if (Math.random() < dt * 10) w.puff(tr.position.clone().add(new THREE.Vector3(2.6, 0.4, 0.5)), '#cfd3da', 0.15, 0.5, 0.5);
       for (const o of this.objects) {
         if (o.done) continue;
-        if (o.kind === 'car') o.obj.position.x -= o.v * dt;
+        if (o.kind === 'car' && !this.blockedCar(o)) o.obj.position.x -= o.v * dt;
         if (o.kind === 'coin') o.obj.rotation.y += dt * 4;
         const dx = Math.abs(o.obj.position.x - tr.position.x);
         if (dx > o.len / 2 + 1.7 || Math.abs(o.obj.position.z - tr.position.z) > 1.15) continue;
@@ -183,6 +184,17 @@ export class TowRun {
       if (this.t <= 0) { this.phase = 'done'; this.finish(); return; }
     }
     if (this.phase !== 'done' && w.followCam) w.followCam.pos.copy(tr.position);
+  }
+
+  // Carro lento parado atrás de cone, barreira ou outro carro na mesma faixa (ninguém atravessa ninguém).
+  blockedCar(c) {
+    const x = c.obj.position.x;
+    for (const o of this.objects) {
+      if (o === c || o.done || o.kind === 'coin' || o.kind === 'oil' || o.lane !== c.lane) continue;
+      const dx = x - o.obj.position.x;
+      if (dx > 0 && dx < c.len / 2 + o.len / 2 + 0.6) return true;
+    }
+    return false;
   }
 
   finish() {

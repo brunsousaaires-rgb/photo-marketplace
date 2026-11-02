@@ -6,6 +6,9 @@ import * as L from './logic.js';
 // Grid de largada em duas filas (a pista comporta dois carros lado a lado).
 const GRID = [[-1.2, 0], [1.2, -2.2], [-1.2, -4.6], [1.2, -6.8]];
 const START = TRACK_PATH.L; // largada no meio da reta da frente
+const LANES = [-1.2, 1.2];
+const GAP = 3.7; // distância mínima entre dois carros na mesma faixa (centro a centro)
+const SIDE = 1.85; // abaixo disso de distância lateral, os carros estão na mesma faixa
 
 export class Race {
   constructor(ctx, entry, onEnd) {
@@ -19,7 +22,7 @@ export class Race {
     const all = [me, ...entry.rivals.map((r) => ({ name: r.name, spec: r.spec, st: { top: r.top, acc: r.acc, grip: r.grip }, nitro: 1 + Math.floor(Math.random() * 2) }))];
     this.racers = all.map((r, i) => {
       const g = ctx.world.addRaceCar(r.spec);
-      return { ...r, g, lane: grid[i][0], s: START + grid[i][1], v: 0, nitroT: 0, done: false, place: 0, heading: Math.PI / 2 };
+      return { ...r, g, lane: grid[i][0], laneT: grid[i][0], s: START + grid[i][1], v: 0, nitroT: 0, done: false, place: 0, heading: Math.PI / 2 };
     });
     this.me = this.racers[0];
     this.finished = [];
@@ -66,7 +69,8 @@ export class Race {
       const p = TRACK_PATH.at(r.s);
       const nx = -p.tz, nz = p.tx;
       r.g.position.set(p.x + nx * r.lane, 0, p.z + nz * r.lane);
-      const want = Math.atan2(p.tx, p.tz);
+      // Inclina o carro para o lado quando ele troca de faixa.
+      const want = Math.atan2(p.tx, p.tz) - Math.max(-0.35, Math.min(0.35, (r.laneT - r.lane) * 0.3));
       r.heading = dt ? lerpAngle(r.heading, want, Math.min(1, dt * 10)) : want;
       r.g.rotation.y = r.heading;
       const u = r.g.userData;
@@ -103,7 +107,9 @@ export class Race {
       if (r.nitroT > 0) { target *= 1.45; r.nitroT -= dt; }
       const acc = r.st.acc * (r.nitroT > 0 ? 2.2 : 1);
       r.v += Math.max(-14 * dt, Math.min(acc * dt, target - r.v));
+      this.traffic(r, dt);
       r.s += r.v * dt;
+      r.lane += Math.max(-3 * dt, Math.min(3 * dt, r.laneT - r.lane));
       if (!r.me && r.nitro > 0 && !p.curve && r.s - START > TRACK_PATH.total * 0.3 && Math.random() < dt * 0.18) { r.nitro--; r.nitroT = 1.6; }
       if (r.nitroT > 0 && Math.random() < dt * 30) {
         const back = new THREE.Vector3(-Math.sin(r.heading) * 1.9, 0.35, -Math.cos(r.heading) * 1.9).add(r.g.position);
@@ -120,6 +126,7 @@ export class Race {
         }
       }
     }
+    this.separate();
     this.place(dt);
     if (ctx.world.followCam) {
       ctx.world.followCam.pos.copy(this.me.g.position);
@@ -132,6 +139,41 @@ export class Race {
     $('#raceLap').textContent = `Volta ${lap}/${this.tier.laps}`;
     $('#racePos').innerHTML = order.map((r, i) => `<li class="${r.me ? 'me' : ''}"><b>${i + 1}º</b> ${r.name}</li>`).join('');
     if ((this.endAt && this.time >= this.endAt) || this.time > 150) this.finish(order);
+  }
+
+  // Carro mais rápido chegando atrás de outro: ultrapassa pela outra faixa se ela estiver livre,
+  // senão segue colado atrás, sem atravessar.
+  traffic(r, dt) {
+    let ahead = null, gap = Infinity;
+    for (const o of this.racers) {
+      if (o === r) continue;
+      const ds = o.s - r.s;
+      if (ds > 0 && ds < 10 && Math.abs(o.lane - r.lane) < SIDE && ds < gap) { gap = ds; ahead = o; }
+    }
+    if (!ahead || r.v < ahead.v - 0.3) return;
+    const other = LANES.find((l) => Math.abs(l - r.laneT) > 0.1);
+    const free = this.racers.every((o) => o === r || o.s - r.s > GAP + 2.5 || r.s - o.s > GAP + 0.3 || (Math.abs(o.lane - other) >= SIDE && Math.abs(o.laneT - other) >= SIDE));
+    if (free && gap < 8 && !r.done) { r.laneT = other; return; }
+    // Sem espaço: acompanha o da frente mantendo distância.
+    const room = gap - GAP;
+    r.v = Math.min(r.v, ahead.v + Math.max(0, room) * 1.8);
+  }
+
+  // Garantia final: nenhum carro ocupa o mesmo lugar que outro.
+  separate() {
+    for (let pass = 0; pass < 4; pass++) {
+      const ord = [...this.racers].sort((a, b) => b.s - a.s);
+      let moved = false;
+      for (let i = 1; i < ord.length; i++) for (let k = 0; k < i; k++) {
+        const r = ord[i], o = ord[k];
+        if (o.s >= r.s && o.s - r.s < GAP && Math.abs(o.lane - r.lane) < SIDE) {
+          r.s = o.s - GAP;
+          r.v = Math.min(r.v, o.v);
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
   }
 
   finish(order) {

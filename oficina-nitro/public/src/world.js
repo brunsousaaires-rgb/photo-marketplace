@@ -7,15 +7,19 @@ import {
   animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH,
 } from './models.js';
 export { LOT_D_EXPORT as LOT_D };
-import { laneTiles, canPlace } from './logic.js';
+import { laneTiles, canPlace, QUEUE_SLOTS } from './logic.js';
+import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
 
 const LOT_D = GRID_H * TILE;
 const LOT_D_EXPORT = LOT_D;
 const MAX_LOT_W = MAX_W * TILE;
-const QUEUE_Z = LOT_D + 3.2; // faixa de espera, colada na calçada
-const PASS_Z = LOT_D + 6.6; // clientes indo embora
-const TRAFFIC_Z = LOT_D + 9.0; // trânsito no sentido contrário
-const SLOT_X = [5, 10.5, 16, 21.5, 27];
+const QUEUE_Z = LOT_D + 3.2; // vagas de espera, coladas na calçada
+const PASS_Z = LOT_D + 6.4; // mão para a direita: clientes chegando e indo embora
+const TRAFFIC_Z = LOT_D + 9.2; // mão para a esquerda: trânsito da cidade
+const MID_UT = (PASS_Z + TRAFFIC_Z) / 2; // meio do retorno
+const SLOT_HALF = 2.2; // meia vaga (carro + folga)
+const SLOT_GAP = 5.6; // distância mínima entre centros de vagas (espaço para manobrar)
+let SERIAL = 0; // ordem de chegada: quem chegou antes tem a preferência
 const CAM_DIR = new THREE.Vector3(1, 1.25, 1).normalize();
 const DAY_LEN = 360; // segundos para um dia completo
 export const TRACK_PATH = makeTrackPath(MAX_LOT_W / 2, -24, 15, 9);
@@ -128,8 +132,10 @@ export class World {
     road.position.set(MAX_LOT_W / 2, 0.01, LOT_D + 5.9);
     road.receiveShadow = true;
     S.add(road);
-    for (let x = -90; x < 140; x += 4) mesh(box(2, 0.02, 0.22), mat('#ffffff'), x, 0.03, LOT_D + 5.5, S).castShadow = false;
-    for (const x of SLOT_X) for (const dx of [-2.6, 2.6]) mesh(box(0.12, 0.02, 2.8), mat('#e6e6e6'), x + dx, 0.03, QUEUE_Z, S).castShadow = false;
+    for (let x = -90; x < 140; x += 4) mesh(box(2, 0.02, 0.22), mat('#ffffff'), x, 0.03, (PASS_Z + TRAFFIC_Z) / 2, S).castShadow = false;
+    mesh(box(230, 0.02, 0.12), mat('#e6e6e6'), 25, 0.03, QUEUE_Z + 1.55, S).castShadow = false; // faixa das vagas
+    this.slotMarks = new THREE.Group();
+    S.add(this.slotMarks);
     const side2 = new THREE.Mesh(new THREE.BoxGeometry(200, 0.24, 1.6), mat('#e4e1da'));
     side2.position.set(MAX_LOT_W / 2, 0, LOT_D + 11);
     side2.receiveShadow = true;
@@ -360,6 +366,7 @@ export class World {
         if (b.job && !this.carViews.has(b.job.c.id)) {
           const cv = this.addCar(b.job.c, baySpot(b), Math.PI);
           cv.atBay = b.id;
+          cv.parked = true;
         }
       }
       if (b.build && !v.scaffold) {
@@ -374,6 +381,7 @@ export class World {
     }
     for (const id of [...this.buildViews.keys()]) if (!ids.has(id)) this.removeView(id);
     this.drawLanes(state);
+    this.layoutSlots(state);
     this.syncStaff(state);
   }
 
@@ -488,23 +496,139 @@ export class World {
     g.rotation.y = heading;
     g.userData.pick = { kind: 'car', id: c.id };
     this.scene.add(g);
-    const v = { g, id: c.id, path: [], speed: 11, heading, wob: 0, onDone: null, hop: 0 };
+    const v = { g, id: c.id, path: [], speed: 11, cur: 0, heading, wob: 0, onDone: null, hop: 0, prio: ++SERIAL, slot: null, parked: false };
     this.carViews.set(c.id, v);
     return v;
   }
 
+  // Vagas de espera: nunca na frente da entrada de um box (assim ninguém precisa atravessar um carro parado).
+  layoutSlots(state) {
+    const ways = [];
+    for (const b of state.buildings) {
+      const d = BUILDINGS[b.type];
+      if (!d.service) continue;
+      const cx = (b.x + d.w / 2) * TILE;
+      const half = (b.type === 'posto' ? TILE + 1 : d.w * TILE - 0.5) / 2 + 1.3; // folga para o carro sair do box manobrando
+      ways.push([cx - half, cx + half]);
+    }
+    const sig = state.lotW + '|' + ways.map((w) => w[0].toFixed(2)).join(',');
+    if (sig === this.slotSig) return;
+    this.slotSig = sig;
+    const free = (x) => ways.every(([a, b]) => x + SLOT_HALF <= a || x - SLOT_HALF >= b);
+    const W = state.lotW * TILE, mid = Math.min(W / 2, 17);
+    const old = this.slots || [];
+    const next = new Array(QUEUE_SLOTS).fill(null);
+    const busy = new Set([...this.carViews.values()].filter((v) => v.slot != null).map((v) => v.slot));
+    for (let i = 0; i < QUEUE_SLOTS; i++) if (busy.has(i) && old[i] != null && free(old[i])) next[i] = old[i];
+    const cands = [];
+    for (let x = -14; x <= W + 14; x += 0.25) if (free(x)) cands.push(x);
+    cands.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+    for (let i = 0; i < QUEUE_SLOTS; i++) {
+      if (next[i] != null) continue;
+      next[i] = cands.find((x) => next.every((y) => y == null || Math.abs(y - x) >= SLOT_GAP)) ?? -20 - i * 6;
+    }
+    this.slots = next;
+    this.slotMarks.clear();
+    const paint = mat('#e6e6e6');
+    for (const x of next) for (const dx of [-SLOT_HALF - 0.2, SLOT_HALF + 0.2]) mesh(box(0.12, 0.02, 2.8), paint, x + dx, 0.03, QUEUE_Z, this.slotMarks).castShadow = false;
+    // Carro esperando numa vaga que virou entrada de box: manobra para a vaga nova.
+    for (const v of this.carViews.values()) {
+      if (v.slot == null || next[v.slot] === old[v.slot]) continue;
+      const st = this.startOnRoad(v);
+      v.parked = false;
+      this.drive(v, [...st.pts, ...this.routeToSlot(st.x, next[v.slot])], () => { v.parked = true; });
+    }
+  }
+
+  slotX(i) {
+    return this.slots && this.slots[i] != null ? this.slots[i] : 5 + i * 5.5;
+  }
+
+  // Ponto na rua onde o carro começa a manobra (saindo do box, da vaga ou já rodando).
+  startOnRoad(v) {
+    const q = v.g.position;
+    // Saindo do box de ré: só começa quando a boca da entrada está livre.
+    if (q.z < LOT_D + 0.8) return { pts: [[q.x, QUEUE_Z, true, false, () => this.mouthBusy(q.x, v)], [q.x + 2.2, PASS_Z - 0.6], [q.x + 4.6, PASS_Z]], x: q.x + 4.6 };
+    if (q.z > QUEUE_Z + 1.4) return { pts: [[q.x + 2.5, PASS_Z]], x: q.x + 2.5 };
+    return { pts: [[q.x + 2.0, QUEUE_Z + 1.3, false, true, null, 1], [q.x + 5.0, PASS_Z]], x: q.x + 5.0 };
+  }
+
+  // Retorno: da mão da direita para a mão da esquerda (manobra larga: os outros guardam distância).
+  uturn(u) {
+    const clear = (v) => this.areaBusy({ x: u + 1.2, z: MID_UT, ux: 1, uz: 0, hl: 3.4, hw: 2.0 }, v);
+    return [[u, PASS_Z], [u + 2.1, MID_UT, false, false, clear, -1, true], [u, TRAFFIC_Z, false, false, null, -1, true]];
+  }
+
+  routeToSlot(x0, sx) {
+    // Só estaciona quando a vaga está vazia de verdade (o cliente anterior pode ainda estar saindo).
+    const free = (v) => this.areaBusy({ x: sx, z: QUEUE_Z, ux: 1, uz: 0, hl: SLOT_HALF + 0.3, hw: 1.3 }, v);
+    const park = [[sx - 2.2, QUEUE_Z + 0.4, false, true, free], [sx, QUEUE_Z, false, true]];
+    if (sx - 4.6 >= x0 + 0.5) return [[sx - 4.6, PASS_Z], ...park];
+    const u = Math.max(x0 + 1, sx + 6);
+    return [...this.uturn(u), [sx + 4.6, TRAFFIC_Z], [sx + 2.2, QUEUE_Z + 0.4, false, true], [sx, QUEUE_Z, false, true]];
+  }
+
+  routeToBay(x0, b, v) {
+    const p = baySpot(b);
+    const front = (b.z + BUILDINGS[b.type].d) * TILE;
+    // Só entra quando a entrada do box está livre (o carro anterior já saiu).
+    const hold = () => this.drivewayBusy(p, v);
+    const tail = [[p.x, QUEUE_Z + 0.3, false, false, hold], [p.x, front + 0.5], [p.x, p.z]];
+    if (p.x - 4.2 >= x0 + 0.5) return [[p.x - 4.2, PASS_Z], ...tail];
+    const u = Math.max(x0 + 1, p.x + 5.5);
+    return [...this.uturn(u), [p.x + 4.2, TRAFFIC_Z], ...tail];
+  }
+
+  mouthBusy(x, self) {
+    return this.areaBusy({ x, z: LOT_D + 4.0, ux: 1, uz: 0, hl: 2.4, hw: 1.9 }, self);
+  }
+
+  // Algum carro (fora das vagas) dentro desta área?
+  areaBusy(area, self) {
+    for (const o of [...this.carViews.values(), ...this.leaving, ...this.traffic]) {
+      if (o === self || o.parked || !o.body) continue;
+      if (hit(area, o.body)) return true;
+    }
+    return false;
+  }
+
+  drivewayBusy(p, self) {
+    for (const o of [...this.carViews.values(), ...this.leaving]) {
+      if (o === self) continue;
+      const q = o.g.position;
+      if (Math.abs(q.x - p.x) < 2.4 && q.z > p.z - 1.5 && q.z < LOT_D + 5.4) return true;
+    }
+    return false;
+  }
+
+  // Lugar livre na rua para um carro novo aparecer (ninguém nasce em cima de outro).
+  spawnX(x, z, dir) {
+    const all = [...this.carViews.values(), ...this.leaving, ...this.traffic];
+    for (let k = 0; k < 12; k++, x += dir * 6) if (!all.some((o) => Math.abs(o.g.position.x - x) < 5.5 && Math.abs(o.g.position.z - z) < 1.6)) return x;
+    return x;
+  }
+
   carArrive(c) {
-    const v = this.addCar(c, new THREE.Vector3(-40, 0, QUEUE_Z), Math.PI / 2);
-    this.drive(v, [[SLOT_X[c.slot], QUEUE_Z]], () => { v.hop = 1; });
+    const x = this.spawnX(-40, PASS_Z, -1);
+    const v = this.addCar(c, new THREE.Vector3(x, 0, PASS_Z), Math.PI / 2);
+    v.slot = c.slot;
+    v.cur = v.speed;
+    this.drive(v, this.routeToSlot(x, this.slotX(c.slot)), () => { v.hop = 1; v.parked = true; });
   }
 
   carToBay(c, b, onArrive) {
     let v = this.carViews.get(c.id);
-    if (!v) v = this.addCar(c, new THREE.Vector3(-40, 0, QUEUE_Z), Math.PI / 2);
-    const p = baySpot(b);
-    const front = (b.z + BUILDINGS[b.type].d) * TILE;
+    let st;
+    if (!v) {
+      const x = this.spawnX(-40, PASS_Z, -1);
+      v = this.addCar(c, new THREE.Vector3(x, 0, PASS_Z), Math.PI / 2);
+      v.cur = v.speed;
+      st = { pts: [], x };
+    } else st = this.startOnRoad(v);
+    v.slot = null;
+    v.parked = false;
     v.atBay = b.id;
-    this.drive(v, [[p.x, QUEUE_Z], [p.x, front + 0.5], [p.x, p.z]], onArrive);
+    this.drive(v, [...st.pts, ...this.routeToBay(st.x, b, v)], (cv) => { v.parked = true; if (onArrive) onArrive(cv); });
   }
 
   carLeave(id, fromBay, happy = true) {
@@ -512,13 +636,13 @@ export class World {
     if (!v) return;
     this.carViews.delete(id);
     v.g.userData.pick = null;
-    const x = v.g.position.x;
-    const path = fromBay
-      ? [[x, QUEUE_Z + 0.5, true], [x + 3, PASS_Z], [130, PASS_Z]]
-      : [[x + 4, PASS_Z], [130, PASS_Z]];
     v.g.position.y = 0;
+    const st = this.startOnRoad(v);
+    v.slot = null;
+    v.parked = false;
+    v.atBay = null;
     v.hop = happy ? 1 : 0;
-    this.drive(v, path, () => { this.scene.remove(v.g); this.leaving.splice(this.leaving.indexOf(v), 1); });
+    this.drive(v, [...st.pts, [140, PASS_Z]], () => { this.scene.remove(v.g); this.leaving.splice(this.leaving.indexOf(v), 1); });
     v.speed = happy ? 14 : 16;
     this.leaving.push(v);
   }
@@ -536,8 +660,27 @@ export class World {
     v.pop = 0;
   }
 
+  // Pontos: [x, z, ré?, manobra de vaga?, espera(v)?]
   drive(v, points, onDone) {
-    v.path = points.map(([x, z, rev]) => ({ x, z, rev: !!rev }));
+    const lane = (z) => (Math.abs(z - PASS_Z) < 0.8 ? 1 : Math.abs(z - TRAFFIC_Z) < 0.8 ? -1 : 0);
+    let prevZ = v.g.position.z, entering = 0;
+    v.path = points.map(([x, z, rev, soft, hold, over, wide]) => {
+      const ln = over ?? lane(z);
+      const laneZ = ln === 1 ? PASS_Z : ln === -1 ? TRAFFIC_Z : z;
+      let watch = null;
+      // Só o primeiro trecho de cada entrada vigia; depois de começar, o carro não para no meio da manobra.
+      if (ln && Math.abs(prevZ - laneZ) > 0.6 && entering !== ln) {
+        // Mão da direita (vindo da vaga ou do box): vigia a faixa e quem também está saindo atrás.
+        watch = ln === 1 ? { dir: 1, lo: QUEUE_Z - 0.3, hi: PASS_Z + 1.0 } : { dir: -1, lo: TRAFFIC_Z - 1.0, hi: TRAFFIC_Z + 1.0 };
+        entering = ln;
+      } else if (Math.abs(prevZ - TRAFFIC_Z) < 0.8 && z < PASS_Z - 0.8) {
+        // Saindo da mão da esquerda para um box: cruza a mão da direita.
+        watch = { dir: 1, lo: PASS_Z - 1.0, hi: PASS_Z + 1.0 };
+      }
+      if (Math.abs(z - laneZ) < 0.05 || !ln) entering = 0;
+      prevZ = z;
+      return { x, z, rev: !!rev, soft: !!soft, hold: hold || null, watch, wide: !!wide };
+    });
     v.onDone = onDone || null;
   }
 
@@ -596,17 +739,18 @@ export class World {
       this.trafficIn = rnd(3, 8);
       const spec = { type: pickOne(CAR_TYPES).id, color: pickOne(PARTS.color).id, wheels: pickOne(['padrao', 'padrao', 'esportiva']), spoiler: 'nenhum', neon: 'nenhum', decal: Math.random() < 0.2 ? 'listras' : 'nenhum' };
       const g = buildCar(spec);
-      g.position.set(120, 0, TRAFFIC_Z);
+      g.position.set(this.spawnX(120, TRAFFIC_Z, 1), 0, TRAFFIC_Z);
       g.rotation.y = -Math.PI / 2;
       this.scene.add(g);
-      this.traffic.push({ g, v: rnd(8, 13) });
+      const sp = rnd(8, 13);
+      const t = { g, path: [], speed: sp, cur: sp, heading: -Math.PI / 2, prio: ++SERIAL, traffic: true };
+      this.drive(t, [[-60, TRAFFIC_Z]], () => { this.scene.remove(g); const i = this.traffic.indexOf(t); if (i >= 0) this.traffic.splice(i, 1); });
+      this.traffic.push(t);
     }
-    for (let i = this.traffic.length - 1; i >= 0; i--) {
-      const t = this.traffic[i];
-      t.g.position.x -= t.v * dt;
-      for (const w of t.g.userData.wheels) w.rotation.x += (t.v * dt) / t.g.userData.wheelR;
-      t.g.userData.body.position.y = Math.sin(this.time * 16 + i) * 0.02;
-      if (t.g.position.x < -60) { this.scene.remove(t.g); this.traffic.splice(i, 1); }
+    for (let i = 0; i < this.traffic.length; i++) {
+      const t = this.traffic[i], u = t.g.userData;
+      for (const w of u.wheels) w.rotation.x += (t.step || 0) / u.wheelR;
+      u.body.position.y = Math.sin(this.time * 16 + t.prio) * 0.02 * Math.min(1, (t.cur || 0) / 4);
     }
     this.walkerIn -= dt;
     if (this.walkerIn <= 0 && this.walkers.length < 9) {
@@ -621,15 +765,22 @@ export class World {
         hat: Math.random() < 0.25 ? pickOne(['#e8473c', '#2f7bea', '#ffffff']) : null,
       });
       p.scale.setScalar(0.85);
-      p.position.set(dir > 0 ? -40 : 110, 0.12, z + rnd(-0.3, 0.3));
+      // Cada um anda do seu lado da calçada para ninguém trombar de frente.
+      p.position.set(dir > 0 ? -40 : 110, 0.12, z - dir * 0.32 + rnd(-0.1, 0.1));
       p.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       this.scene.add(p);
       this.walkers.push({ p, dir, v: rnd(1.3, 2), ph: rnd(0, 6) });
     }
+    const carBodies = this.carBodies || [];
     for (let i = this.walkers.length - 1; i >= 0; i--) {
       const w = this.walkers[i];
-      w.p.position.x += w.dir * w.v * dt;
-      animatePerson(w.p, this.time * (w.v / 1.6) + w.ph, 'walk');
+      const q = w.p.position;
+      // Para se tiver carro atravessando a calçada ou alguém mais lento logo à frente.
+      const ahead = { x: q.x + w.dir * 0.75, z: q.z, ux: 1, uz: 0, hl: 0.42, hw: 0.3 };
+      w.waiting = carBodies.some((b) => hit(ahead, b)) ||
+        this.walkers.some((o) => o !== w && o.dir === w.dir && Math.abs(o.p.position.z - q.z) < 0.45 && (o.p.position.x - q.x) * w.dir > 0 && (o.p.position.x - q.x) * w.dir < 0.9);
+      if (!w.waiting) q.x += w.dir * w.v * dt;
+      animatePerson(w.p, w.waiting ? this.time + w.ph : this.time * (w.v / 1.6) + w.ph, w.waiting ? 'idle' : 'walk');
       if (w.p.position.x > 115 || w.p.position.x < -45) { this.scene.remove(w.p); this.walkers.splice(i, 1); }
     }
   }
@@ -758,32 +909,30 @@ export class World {
       }
     }
 
-    // Carros.
-    for (const v of [...this.carViews.values(), ...this.leaving]) {
+    // Carros: primeiro o trânsito decide quem pode andar (ninguém atravessa ninguém), depois a animação.
+    const cust = [...this.carViews.values(), ...this.leaving];
+    const people = [];
+    for (const w of this.walkers) if (!w.waiting) people.push(personBody(w.p.position.x, w.p.position.z));
+    for (const sv of this.staffViews) if (sv.goal && !sv.waiting && sv.p.visible) people.push(personBody(sv.p.position.x, sv.p.position.z));
+    stepVehicles([...cust, ...this.traffic], dt, {
+      people,
+      lerpAngle,
+      // Durante o guincho a avenida é do minijogo: carros de clientes na pista esperam escondidos.
+      frozen: (v) => !!this.towing && !v.traffic && v.g.position.z > LOT_D + 4.3,
+    });
+    this.carBodies = cust.filter((v) => v.path.length && !v.frozen).map((v) => v.body);
+    for (const v of cust) {
       const g = v.g, u = g.userData;
-      let moving = false;
-      if (v.path.length) {
-        const p = v.path[0];
-        const dx = p.x - g.position.x, dz = p.z - g.position.z;
-        const dist = Math.hypot(dx, dz);
-        const last = v.path.length === 1;
-        const sp = last ? Math.min(v.speed, 1.5 + dist * 2.4) : v.speed;
-        const step = sp * dt;
-        if (dist > 0.001) {
-          const want = Math.atan2(dx, dz) + (p.rev ? Math.PI : 0);
-          v.heading = lerpAngle(v.heading, want, Math.min(1, dt * 9));
-          g.rotation.y = v.heading;
-        }
-        if (step >= dist) {
-          g.position.x = p.x; g.position.z = p.z;
-          v.path.shift();
-          if (!v.path.length && v.onDone) { const cb = v.onDone; v.onDone = null; cb(v); }
-        } else {
-          g.position.x += (dx / dist) * step;
-          g.position.z += (dz / dist) * step;
-        }
-        moving = true;
-        for (const w of u.wheels) w.rotation.x += (step / u.wheelR) * (p.rev ? -1 : 1);
+      g.visible = !this.visit && !v.frozen;
+      // Estacionado na vaga: endireita o carro paralelo à calçada.
+      if (v.parked && v.slot != null && !v.path.length) {
+        const to = Math.sin(v.heading) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+        v.heading = lerpAngle(v.heading, to, Math.min(1, dt * 5));
+        g.rotation.y = v.heading;
+      }
+      const moving = v.step > 0.0005;
+      if (moving) {
+        for (const w of u.wheels) w.rotation.x += (v.step / u.wheelR) * (v.rev ? -1 : 1);
         if (Math.random() < dt * 8) this.puff(g.position.clone().setY(0.3).add(new THREE.Vector3(-Math.sin(v.heading) * u.length * 0.55, 0, -Math.cos(v.heading) * u.length * 0.55)), '#cfd3da', 0.12, 0.6, 0.6);
       }
       v.wob = moving ? Math.min(1, v.wob + dt * 4) : v.wob * Math.pow(0.02, dt);
@@ -955,12 +1104,17 @@ World.prototype.updateStaff = function (dt) {
     if (!sv.goal) {
       for (let k = 0; k < 10; k++) {
         const x = Math.floor(Math.random() * st.lotW), z = Math.floor(Math.random() * GRID_H);
-        if (canPlace(st, 'arvore', x, z) || laneTiles(st).has(`${x},${z}`)) { sv.goal = { x: (x + 0.5) * TILE, z: (z + 0.5) * TILE }; break; }
+        // Só para em lugar livre (fora das entradas dos boxes, onde os carros passam).
+        if (canPlace(st, 'arvore', x, z)) { sv.goal = { x: (x + 0.5) * TILE, z: (z + 0.5) * TILE }; break; }
       }
       if (!sv.goal) { sv.wait = 1; continue; }
     }
     const dx = sv.goal.x - p.position.x, dz = sv.goal.z - p.position.z, d = Math.hypot(dx, dz);
     if (d < 0.1) { sv.goal = null; sv.wait = 1.5 + Math.random() * 3; continue; }
+    // Espera o carro passar antes de cruzar a frente dele.
+    const ahead = { x: p.position.x + (dx / d) * 0.7, z: p.position.z + (dz / d) * 0.7, ux: dx / d, uz: dz / d, hl: 0.4, hw: 0.3 };
+    sv.waiting = (this.carBodies || []).some((b) => hit(ahead, b));
+    if (sv.waiting) { animatePerson(p, this.time + sv.ph, 'idle'); continue; }
     const step = Math.min(d, 1.6 * dt);
     p.position.x += (dx / d) * step; p.position.z += (dz / d) * step;
     p.rotation.y = lerpAngle(p.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
