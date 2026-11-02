@@ -677,9 +677,11 @@ export class World {
         // Saindo da mão da esquerda para um box: cruza a mão da direita.
         watch = { dir: 1, lo: PASS_Z - 1.0, hi: PASS_Z + 1.0 };
       }
+      // Enquanto entra na faixa, o carro reserva um pedaço dela (claim) e quem vem atrás para antes.
+      const claim = entering ? { dir: entering, z: entering === 1 ? PASS_Z : TRAFFIC_Z, first: !!watch } : null;
       if (Math.abs(z - laneZ) < 0.05 || !ln) entering = 0;
       prevZ = z;
-      return { x, z, rev: !!rev, soft: !!soft, hold: hold || null, watch, wide: !!wide };
+      return { x, z, rev: !!rev, soft: !!soft, hold: hold || null, watch, wide: !!wide, claim };
     });
     v.onDone = onDone || null;
   }

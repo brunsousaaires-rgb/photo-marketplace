@@ -47,6 +47,9 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
     v.body = bodyOf(v.g);
     // Durante uma manobra larga (retorno), os outros enxergam o carro maior e mantêm distância.
     v.obody = v.path.length && v.path[0].wide && v.path[0].moved ? bodyOf(v.g, 0.9) : v.body;
+    // Entrando numa faixa (depois de começar): reserva o trecho da faixa ao lado e logo atrás.
+    const c = v.path.length ? v.path[0].claim : null;
+    v.claim = c && (!c.first || v.path[0].moved) ? { x: v.g.position.x - c.dir * 2.25, z: c.z, ux: 1, uz: 0, hl: 4.75, hw: 1.0, dir: c.dir } : null;
     v.blk = null;
     v.near = false;
     v.blkPerson = false;
@@ -85,7 +88,7 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
     const w = p.watch && !p.moved ? p.watch : null;
     // Bem para trás (até ~27): quem sai parado demora para pegar velocidade.
     // Esperando há mais de 2 s, ganha passagem: só vigia quem está bem perto e os de trás freiam.
-    const reach = (v.watchWait || 0) > 2 ? 4.5 : 14;
+    const reach = (p.waited || 0) > 2 ? 4.5 : 14;
     const back = w ? { x: g.position.x - w.dir * (reach - 0.5), z: (w.lo + w.hi) / 2, ux: 1, uz: 0, hl: reach, hw: (w.hi - w.lo) / 2 } : null;
     // Carro andando é vigiado de longe; carro parado, só se estiver bem do lado da manobra.
     const backNear = w ? { x: g.position.x - w.dir * 2.75, z: back.z, ux: 1, uz: 0, hl: 3.25, hw: back.hw } : null;
@@ -95,6 +98,11 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
       if (o === v || o.frozen || o.ghost > 0) continue;
       if (soft && o.parked) continue;
       let t = Infinity, isNear = false;
+      // Alguém entrando na faixa à frente reservou um trecho: quem vem atrás no mesmo sentido para antes dele.
+      if (o.claim && px * o.claim.dir > 0.5 && (o.body.x - v.body.x) * o.claim.dir > 0 && (hit(far, o.claim) || hit(v.body, o.claim))) {
+        v.blks.push({ o, t: 0, near: hit(near, o.claim) });
+        continue;
+      }
       const moving = (o.cur || 0) >= 0.5;
       // (quem está segurando numa entrada não sai do lugar até a gente passar, então não conta)
       if (back && !o.parked && !o.holding && o.path?.length && (moving ? (o.mx || 0) * w.dir > 0.3 && hit(back, o.obody) : hit(backNear, o.obody))) { t = 0; watched = true; }
@@ -110,15 +118,21 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
       }
       v.blks.push({ o, t, near: isNear });
     }
-    v.watchWait = watched ? (v.watchWait || 0) + dt : 0;
+    if (watched) p.waited = (p.waited || 0) + dt;
     if (!v.blks.length) for (const pb of people) if (hit(far, pb) && !hit(v.body, pb)) { v.blkPerson = true; break; }
   }
   // Preferência: quando dois carros (ou uma roda deles) esperam um pelo outro,
   // quem chegou primeiro passa e os outros esperam.
-  const waitsOn = (a, b) => a.blks?.some((x) => x.o === b && x.t === 0);
+  // Primeiro critério: passa quem ainda tem espaço livre logo à frente; empatou, passa o mais antigo.
+  const stopOn = (a, b) => a.blks?.find((x) => x.o === b && x.t === 0);
+  const goesFirst = (v, o, mine, theirs) => (mine.near !== theirs.near ? !mine.near : (v.prio || 0) < (o.prio || 0));
   for (const v of list) {
     if (!v.blks?.length) continue;
-    v.blks = v.blks.filter((x) => !(x.t === 0 && waitsOn(x.o, v) && (v.prio || 0) < (x.o.prio || 0)));
+    v.blks = v.blks.filter((x) => {
+      if (x.t !== 0) return true;
+      const theirs = stopOn(x.o, v);
+      return !(theirs && goesFirst(v, x.o, x, theirs));
+    });
   }
   for (const v of list) {
     if (!v.blks?.length) continue;

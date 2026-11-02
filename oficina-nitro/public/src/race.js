@@ -7,8 +7,10 @@ import * as L from './logic.js';
 const GRID = [[-1.2, 0], [1.2, -2.2], [-1.2, -4.6], [1.2, -6.8]];
 const START = TRACK_PATH.L; // largada no meio da reta da frente
 const LANES = [-1.2, 1.2];
-const GAP = 3.7; // distância mínima entre dois carros na mesma faixa (centro a centro)
+const GAP = 4.2; // distância mínima entre dois carros na mesma faixa (centro a centro; na curva de dentro encurta)
 const SIDE = 1.85; // abaixo disso de distância lateral, os carros estão na mesma faixa
+// Distância na pista de r até o (positiva se o está à frente), contando que alguém pode estar uma volta na frente.
+const along = (o, r) => { const T = TRACK_PATH.total; let d = (o.s - r.s) % T; if (d > T / 2) d -= T; if (d < -T / 2) d += T; return d; };
 
 export class Race {
   constructor(ctx, entry, onEnd) {
@@ -147,12 +149,12 @@ export class Race {
     let ahead = null, gap = Infinity;
     for (const o of this.racers) {
       if (o === r) continue;
-      const ds = o.s - r.s;
+      const ds = along(o, r);
       if (ds > 0 && ds < 10 && Math.abs(o.lane - r.lane) < SIDE && ds < gap) { gap = ds; ahead = o; }
     }
     if (!ahead || r.v < ahead.v - 0.3) return;
     const other = LANES.find((l) => Math.abs(l - r.laneT) > 0.1);
-    const free = this.racers.every((o) => o === r || o.s - r.s > GAP + 2.5 || r.s - o.s > GAP + 0.3 || (Math.abs(o.lane - other) >= SIDE && Math.abs(o.laneT - other) >= SIDE));
+    const free = this.racers.every((o) => o === r || along(o, r) > GAP + 2.5 || -along(o, r) > GAP + 0.3 || (Math.abs(o.lane - other) >= SIDE && Math.abs(o.laneT - other) >= SIDE));
     if (free && gap < 8 && !r.done) { r.laneT = other; return; }
     // Sem espaço: acompanha o da frente mantendo distância.
     const room = gap - GAP;
@@ -162,15 +164,11 @@ export class Race {
   // Garantia final: nenhum carro ocupa o mesmo lugar que outro.
   separate() {
     for (let pass = 0; pass < 4; pass++) {
-      const ord = [...this.racers].sort((a, b) => b.s - a.s);
       let moved = false;
-      for (let i = 1; i < ord.length; i++) for (let k = 0; k < i; k++) {
-        const r = ord[i], o = ord[k];
-        if (o.s >= r.s && o.s - r.s < GAP && Math.abs(o.lane - r.lane) < SIDE) {
-          r.s = o.s - GAP;
-          r.v = Math.min(r.v, o.v);
-          moved = true;
-        }
+      for (const r of this.racers) for (const o of this.racers) {
+        if (o === r || Math.abs(o.lane - r.lane) >= SIDE) continue;
+        const d = along(o, r);
+        if (d >= 0 && d < GAP) { r.s -= GAP - d; r.v = Math.min(r.v, o.v); moved = true; }
       }
       if (!moved) break;
     }
