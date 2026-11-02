@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mat, mesh, box, cyl, sph, rbox, buildTree, buildPerson, animatePerson, buildBuilding, buildCar, textTexture, glow } from './models.js';
+import { ROAD } from './roads.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -514,7 +515,7 @@ export class City {
 
     // Ruas: a lateral (esquerda, x = C1) e a transversal (direita, x = C2) cruzam a avenida;
     // a Rua dos Fundos (z = BZ) liga as duas por trás da oficina, fechando um anel.
-    const C1 = -17, C2 = 66, BZ = -13;
+    const { C1, C2, BZ } = ROAD;
     road(S, C1, D + 12 + 22, 7, 44);
     road(S, C2, D + 12 + 22, 7, 44);
     road(S, C2, D - 31, 7, 62);

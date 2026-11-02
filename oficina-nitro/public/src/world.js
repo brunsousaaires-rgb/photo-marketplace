@@ -10,7 +10,7 @@ export { LOT_D_EXPORT as LOT_D };
 import { laneTiles, canPlace, QUEUE_SLOTS, parcelsOf, landStatus, lotBounds } from './logic.js';
 import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
 import { City, grassTexture } from './city.js';
-import { buildRoads, routePoints, VEHICLE_KINDS } from './roads.js';
+import { buildRoads, routePoints, VEHICLE_KINDS, ROAD } from './roads.js';
 
 const LOT_D = GRID_H * TILE;
 const LOT_D_EXPORT = LOT_D;
@@ -19,7 +19,7 @@ const QUEUE_Z = LOT_D + 3.2; // vagas de espera, coladas na calçada
 const PASS_Z = LOT_D + 6.4; // mão para a direita: clientes chegando e indo embora
 const TRAFFIC_Z = LOT_D + 9.2; // mão para a esquerda: trânsito da cidade
 const MID_UT = (PASS_Z + TRAFFIC_Z) / 2; // meio do retorno
-export const JUNCTIONS = [-17, 66]; // x das ruas que chegam na avenida (rua lateral e rua transversal)
+export const JUNCTIONS = [ROAD.C1, ROAD.C2]; // x das ruas que chegam na avenida (rua lateral e rua transversal)
 const SLOT_HALF = 2.2; // meia vaga (carro + folga)
 const SLOT_GAP = 5.6; // distância mínima entre centros de vagas (espaço para manobrar)
 let SERIAL = 0; // ordem de chegada: quem chegou antes tem a preferência
@@ -1003,7 +1003,9 @@ export class World {
     const inBox = (o) => Math.abs(o.g.position.x - node.x) < node.hx - 0.4 && Math.abs(o.g.position.z - node.z) < node.hz - 0.4;
     const zones = Object.values(this.net.lanes).filter((l) => l.to === node.id && l !== laneIn && (Math.abs(l.dir[0]) > 0.5 ? 'x' : 'z') === axis).map((l) => {
       const e = l.pts[1];
-      return { x: e[0] - l.dir[0] * 12, z: e[1] - l.dir[1] * 12, ux: l.dir[0], uz: l.dir[1], hl: 12, hw: 1.1 };
+      // Esperando há mais de 10 s: só vigia quem já está bem perto (a preferencial freia um pouco).
+      const r = (self?.holdT || 0) > 10 ? 5 : 12;
+      return { x: e[0] - l.dir[0] * r, z: e[1] - l.dir[1] * r, ux: l.dir[0], uz: l.dir[1], hl: r, hw: 1.1 };
     });
     for (const o of all) {
       if (o === self || o.parked || !o.body) continue;

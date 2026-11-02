@@ -27,7 +27,7 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 | Personaliza na Cabine de Estilo | **Cor, rodas, aerofólio, neon e adesivo**, com miniaturas 3D de cada peça. Acertar o pedido dá ⭐⭐⭐ e peças extras dão gorjeta |
 | Atende **clientes VIP** 👑 | Pedidos mais difíceis, pagam 2,5x |
 | Constrói (com obra e andaime) | Elevadores, lava-jato, **posto de combustível**, loja de peças (renda passiva), **box de restauração**, **showroom** e 15 decorações |
-| Compra **terrenos vizinhos** | A oficina cresce para o lado (placa "À VENDA") |
+| Compra **terrenos** | 6 terrenos em volta da oficina (direita, esquerda e fundos), cada um com nível mínimo e preço, e só quando encosta num terreno seu. Placa "À VENDA" no mapa ou aba Expansões; o piso sobe do chão com poeira e confete |
 | Compra a **Pista de Corrida** | Fica atrás da oficina, com arquibancada |
 | **Leilão → Restauração → Garagem** | Compre uma sucata, restaure (etapas: funilaria, pintura, montagem…), personalize, prepare motor, turbo e pneus. Depois **corra** ou **venda** com lucro |
 | Corre na pista | Contagem regressiva, 4 carros, câmera seguindo você e botão **NITRO** (3 cargas). Prêmios e troféus, que dão fama |
@@ -40,6 +40,10 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 | Enfrenta a **chuva** | Chove de verdade na cena, com céu escuro, som de chuva e muito carro enlameado para o lava-jato |
 | Tira **fotos** | Estúdio com 4 cenários e 4 ângulos para salvar a foto do carro |
 | Joga **online** | Visita e curte a oficina dos amigos, desafia o melhor carro deles na pista, vota no **concurso semanal** do carro mais bonito (os 3 primeiros ganham caixas) e salva o jogo na nuvem |
+
+**Cidade e trânsito:** em volta da oficina tem praça com calçadão de ondas, chafariz e coreto, lojinhas, igreja, prédio, campinho, parque com lago e patinhos, parquinho, mercadinho, ponto de ônibus e o letreiro NITRO no morro. Entre 4 e 8 veículos circulam por **rotas de waypoints**: entram por uma ponta do mapa e saem por outra, fazem curvas suaves nos cruzamentos, param no **semáforo** da rua transversal e dão a vez para a avenida no cruzamento sem semáforo. Seis modelos cartoon (hatch, sedã, picape, esportivo, van e jipe), mais táxi e van de entrega.
+
+**Câmera livre:** arrastar (mouse ou um dedo, com inércia), zoom na rodinha ou com dois dedos sempre no ponto do cursor ou dos dedos, limites do mapa e botão de voltar para a oficina.
 
 **Trânsito de verdade:** nenhum carro atravessa outro. As vagas de espera nunca ficam na frente da entrada de um box. A rua tem mão e contramão, os carros freiam e seguem o da frente, olham para trás antes de entrar na faixa e reservam o espaço da manobra. Quem chegou primeiro tem a preferência, e retornos em U, saídas de ré e pedestres são respeitados. Na pista, os carros ultrapassam pela outra faixa ou seguem colados atrás, inclusive ao dar volta em retardatários.
 
@@ -63,6 +67,8 @@ public/src/
   models.js   modelos 3D feitos em código: carros, pessoas, construções, decoração, pista
   world.js    cena 3D: câmera, terreno expansível, dia/noite, trânsito, pedestres, obras, efeitos
   traffic.js  trânsito: corpos dos carros, freio, preferência, entrada na faixa, sem sobreposição
+  roads.js    rede de ruas: faixas com sentido, cruzamentos, curvas, rotas e tipos de veículo
+  city.js     a cidade em volta (praça, lojas, parque, campinho...) juntada em blocos por região
   race.js     corrida: física simples, IA dos rivais, ultrapassagem, nitro, câmera seguindo
   garage.js   garagem: coleção, leilão, preparação, inscrição nas corridas
   preview.js  miniaturas 3D das peças/construções e visualizador giratório da garagem
@@ -75,6 +81,14 @@ public/src/
   extras.js   menu, clientes fixos, álbum, caixas, peças raras, evento, equipe, foto
   main.js     interface: balões, personalização, loja, missões, níveis, toque/arrastar/zoom, salvamento
 ```
+
+## 🧭 Como crescer o mapa
+
+- **Novo terreno:** acrescente um item em `LAND` (`data.js`) com `x, z, w, h` na grade, `cost`, `lvl` e `needs` (terrenos que precisam vir antes). A cerca, a placa, a compra e a animação saem sozinhas.
+- **Nova rua:** acrescente faixas (com sentido) e, se for o caso, um nó de cruzamento em `buildRoads()` (`roads.js`). As rotas são recalculadas sozinhas; desenhe o asfalto em `city.js`.
+- **Novo tipo de veículo:** acrescente em `VEHICLE_KINDS` (`roads.js`) o modelo, a velocidade e a frequência.
+
+O save tem versão (`v: 3`) e `migrate()` converte saves antigos sem perder moedas, XP, nível, construções ou terrenos.
 
 ## 🔜 Próximos passos
 

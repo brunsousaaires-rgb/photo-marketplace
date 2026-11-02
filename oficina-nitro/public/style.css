@@ -561,3 +561,6 @@ canvas#scene { touch-action: none; }
 .homebtn:active { transform: translateY(3px); box-shadow: inset 0 -3px 0 #b8c6dc, 0 1px 0 var(--ink); }
 @media (max-width: 600px) { .homebtn { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(98px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; } }
 @media (max-height: 520px) and (orientation: landscape) { .homebtn { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; } }
+
+/* Balões: âncora no canto (o empilhamento e a escala são feitos no JS). */
+.bub { transform-origin: 0 0; }

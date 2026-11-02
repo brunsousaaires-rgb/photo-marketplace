@@ -7,7 +7,7 @@
 // (a avenida já era assim: ida pelo lado da oficina, volta pelo lado da praça).
 
 export const ROAD = {
-  C1: -17, // rua lateral (esquerda da oficina), cruza a avenida
+  C1: -19, // rua lateral (esquerda da oficina), cruza a avenida (longe da cerca do terreno da esquerda)
   C2: 66, // rua transversal (direita), cruza a avenida e tem semáforo
   BZ: -13, // Rua dos Fundos, liga a lateral à transversal por trás da oficina
   HALF: 3.5, // meia largura das ruas

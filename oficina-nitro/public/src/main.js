@@ -242,6 +242,7 @@ const bubbleEls = new Map();
 // Área livre da tela (sem o HUD de cima e os botões de baixo), recalculada a cada quadro.
 let safe = { l: 8, t: 120, r: innerWidth - 8, b: innerHeight - 110 };
 let edgeList = [];
+let onList = [];
 function measureSafe() {
   const top = Math.max($('#lvl').getBoundingClientRect().bottom, $('#eventPill').hidden ? 0 : $('#eventPill').getBoundingClientRect().bottom, $('#res').getBoundingClientRect().bottom);
   const bottom = $('#btnMissions').getBoundingClientRect().top || innerHeight - 100;
@@ -266,7 +267,28 @@ function setBubble(seen, key, pos, cls, html, act, id, edgeHtml = null) {
   el.dataset.id = id;
   if (out) { edgeList.push({ el, x: pos.x, y: pos.y }); el.style.display = ''; return; }
   el.style.display = pos.visible ? '' : 'none';
-  el.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) translate(-50%, -100%)`;
+  if (pos.visible) onList.push({ el, x: pos.x, y: pos.y, key });
+}
+
+// Balões na tela: menores quando o zoom está longe e empilhados para cima quando encostam um no outro.
+function placeBubbles() {
+  const s = Math.max(0.74, Math.min(1, 0.62 + 0.38 * world.zoom));
+  const placed = [];
+  onList.sort((a, b) => b.y - a.y || a.x - b.x);
+  for (const b of onList) {
+    if (b.el._h == null || b.el._mk !== b.el._html) { b.el._w = b.el.offsetWidth; b.el._h = b.el.offsetHeight; b.el._mk = b.el._html; }
+    const w = (b.el._w || 120) * s, h = (b.el._h || 40) * s;
+    let y = b.y;
+    for (let k = 0; k < 8; k++) {
+      const c = placed.find((r) => Math.abs(r.x - b.x) < (r.w + w) / 2 + 2 && y > r.y - r.h - 2 && y - h < r.y + 2);
+      if (!c) break;
+      y = c.y - c.h - 4; // sobe para cima do outro
+    }
+    placed.push({ x: b.x, y, w, h });
+    b.el.style.transform = `translate(${b.x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(3)}) translate(-50%, -100%)`;
+    b.el.style.zIndex = String(1000 - placed.length);
+  }
+  onList = [];
 }
 // Setinhas na borda: cada uma fica no ponto da borda mais perto do alvo, sem amontoar.
 function placeEdges() {
@@ -360,6 +382,7 @@ function updateBubbles() {
     }
   }
   placeEdges();
+  placeBubbles();
   for (const [k, el] of bubbleEls) if (!seen.has(k)) { el.remove(); bubbleEls.delete(k); }
 }
 

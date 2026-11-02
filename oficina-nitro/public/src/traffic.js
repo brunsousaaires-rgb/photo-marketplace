@@ -61,8 +61,9 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
     if (!v.path.length || v.frozen) continue;
     const p = v.path[0];
     if (!p.go) {
-      if (p.hold && p.hold(v)) { v.holding = true; continue; }
+      if (p.hold && p.hold(v)) { v.holding = true; v.holdT = (v.holdT || 0) + dt; continue; }
       p.go = true;
+      v.holdT = 0;
     }
     const g = v.g;
     const dx = p.x - g.position.x, dz = p.z - g.position.z;
