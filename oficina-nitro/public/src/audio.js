@@ -31,9 +31,13 @@ export class Sfx {
     this.musicOn = true;
     this.last = {};
     this.night = 0;
+    // Vibração (celulares Android): ligada por padrão onde existe.
+    this.canBuzz = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+    this.haptics = this.canBuzz;
     try {
       this.muted = localStorage.getItem('oficina.muted') === '1';
       this.musicOn = localStorage.getItem('oficina.music') !== '0';
+      if (localStorage.getItem('oficina.haptics') === '0') this.haptics = false;
     } catch {}
     const unlock = () => {
       if (!this.ctx) {
@@ -262,7 +266,21 @@ export class Sfx {
     src.stop(t + d + 0.05);
   }
 
+  toggleHaptics() {
+    this.haptics = this.canBuzz && !this.haptics;
+    try { localStorage.setItem('oficina.haptics', this.haptics ? '1' : '0'); } catch {}
+    if (this.haptics) this.buzz('cash');
+  }
+
+  // Toquezinho na mão para as ações importantes (dinheiro, erro, prêmio).
+  buzz(name) {
+    if (!this.haptics) return;
+    const pat = { tap: 6, click: 6, cash: 18, coin: 10, error: [30, 40, 30], levelup: [40, 60, 80], win: [40, 60, 80], crate: 25, rare: [30, 50, 30, 50, 60], build: 25, nitro: 35, stars: [20, 40, 20] }[name];
+    if (pat) try { navigator.vibrate(pat); } catch {}
+  }
+
   play(name) {
+    this.buzz(name);
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const now = performance.now();
     const gap = { tap: 60, coin: 50, click: 40, hammer: 120 }[name] || 0;

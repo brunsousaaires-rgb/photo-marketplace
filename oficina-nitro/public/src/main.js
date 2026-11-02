@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { World, baySpot, TRACK_PATH } from './world.js';
 import * as L from './logic.js';
 import { BUILDINGS, PARTS, PART_TABS, PART_LABEL, GRID_H, TILE, BUILDING_MAX_LEVEL, LAND, TRACK, xpNeed, part, limitAt, RARITY, CRATES } from './data.js';
@@ -178,6 +179,7 @@ function setHudMode() {
   $('#btnMenu').hidden = !play;
   $('#eventPill').hidden = !play;
   $('#visitBar').hidden = mode !== 'visit';
+  document.body.dataset.mode = mode;
   if (mode === 'visit' || mode === 'tow') { $('#lvl').hidden = mode === 'tow'; $('#btnShop').hidden = true; $('#btnMissions').hidden = true; $('#btnGarage').hidden = true; }
   lastHud = '';
 }
@@ -237,21 +239,52 @@ function updateTip() {
 
 // ---------- balões presos no 3D ----------
 const bubbleEls = new Map();
-function setBubble(seen, key, pos, cls, html, act, id) {
+// Área livre da tela (sem o HUD de cima e os botões de baixo), recalculada a cada quadro.
+let safe = { l: 8, t: 120, r: innerWidth - 8, b: innerHeight - 110 };
+let edgeList = [];
+function measureSafe() {
+  const top = Math.max($('#lvl').getBoundingClientRect().bottom, $('#eventPill').hidden ? 0 : $('#eventPill').getBoundingClientRect().bottom, $('#res').getBoundingClientRect().bottom);
+  const bottom = $('#btnMissions').getBoundingClientRect().top || innerHeight - 100;
+  safe = { l: 8, t: top + 8, r: innerWidth - 8, b: bottom - 8 };
+}
+// edgeHtml: versão compacta para quando o alvo está fora da tela (vira uma setinha na borda).
+function setBubble(seen, key, pos, cls, html, act, id, edgeHtml = null) {
   seen.add(key);
   let el = bubbleEls.get(key);
   if (!el) {
     el = document.createElement('div');
-    el.innerHTML = '<div class="in"></div>';
+    el.innerHTML = '<div class="in"></div><i class="arr"></i>';
     $('#bubbles').appendChild(el);
     bubbleEls.set(key, el);
   }
-  if (el._cls !== cls) { el.className = 'bub ' + cls; el._cls = cls; }
-  if (el._html !== html) { el.firstChild.innerHTML = html; el._html = html; }
+  const out = edgeHtml && (pos.x < safe.l || pos.x > safe.r || pos.y < safe.t + 30 || pos.y > safe.b + 40 || !pos.visible);
+  const c = out ? cls + ' edge' : cls;
+  const h = out ? edgeHtml : html;
+  if (el._cls !== c) { el.className = 'bub ' + c; el._cls = c; }
+  if (el._html !== h) { el.firstChild.innerHTML = h; el._html = h; }
   el.dataset.act = act;
   el.dataset.id = id;
+  if (out) { edgeList.push({ el, x: pos.x, y: pos.y }); el.style.display = ''; return; }
   el.style.display = pos.visible ? '' : 'none';
   el.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) translate(-50%, -100%)`;
+}
+// Setinhas na borda: cada uma fica no ponto da borda mais perto do alvo, sem amontoar.
+function placeEdges() {
+  const R = 34, placed = [];
+  for (const e of edgeList) {
+    let x = Math.min(safe.r - R, Math.max(safe.l + R, e.x));
+    let y = Math.min(safe.b - R, Math.max(safe.t + R, e.y));
+    const side = x <= safe.l + R + 1 || x >= safe.r - R - 1;
+    for (let k = 0; k < 8 && placed.some((p) => Math.hypot(p.x - x, p.y - y) < 2 * R + 4); k++) {
+      if (side) y = y + 2 * R + 6 > safe.b - R ? y - (2 * R + 6) * (k + 1) : y + 2 * R + 6;
+      else x = x + 2 * R + 6 > safe.r - R ? x - (2 * R + 6) * (k + 1) : x + 2 * R + 6;
+    }
+    placed.push({ x, y });
+    const a = Math.atan2(e.y - y, e.x - x);
+    e.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`;
+    e.el.style.setProperty('--a', a.toFixed(3) + 'rad');
+  }
+  edgeList = [];
 }
 
 function wantsHtml(c) {
@@ -266,6 +299,7 @@ function wantsHtml(c) {
 
 function updateBubbles() {
   const seen = new Set();
+  measureSafe();
   if (mode === 'play') {
     for (const c of state.queue) {
       const v = world.carViews.get(c.id);
@@ -274,7 +308,9 @@ function updateBubbles() {
       const col = pct > 0.5 ? '#46c35a' : pct > 0.25 ? '#ffb800' : '#f0503c';
       const ch = c.char ? X.charById(c.char) : null;
       const html = `<div class="face ${ch ? 'char' : ''}">${ch ? portrait(ch.face) : icon(faceFor(pct))}<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" stroke="#e3e8f0"/><circle cx="18" cy="18" r="16" stroke="${col}" stroke-dasharray="${(pct * 100.5).toFixed(0)} 200" transform="rotate(-90 18 18)"/></svg></div><div class="want">${wantsHtml(c)}</div><span class="price">${coin(c.job.pay)}</span>${c.vip ? `<span class="vipb">${icon('vip')}</span>` : ''}${ch ? `<span class="chname">${ch.name}</span>` : ''}${c.towed ? '<span class="chname">Rebocado</span>' : ''}`;
-      setBubble(seen, 'c' + c.id, screenOf(v.g.position, 2.7), 'wait' + (pct < 0.25 ? ' urgent' : '') + (c.vip ? ' vip' : ''), html, 'assign', c.id);
+      const face = `<div class="face ${ch ? 'char' : ''}">${ch ? portrait(ch.face) : icon(faceFor(pct))}<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" stroke="#e3e8f0"/><circle cx="18" cy="18" r="16" stroke="${col}" stroke-dasharray="${(pct * 100.5).toFixed(0)} 200" transform="rotate(-90 18 18)"/></svg></div>`;
+      const small = `${face}<span class="jobic">${icon(c.job.kind === 'custom' ? 'estilo' : c.job.icon)}</span>`;
+      setBubble(seen, 'c' + c.id, screenOf(v.g.position, 2.7), 'wait' + (pct < 0.25 ? ' urgent' : '') + (c.vip ? ' vip' : ''), html, 'assign', c.id, small);
     }
   }
   if (mode === 'play' || mode === 'place') {
@@ -298,13 +334,13 @@ function updateBubbles() {
           setBubble(seen, 'b' + b.id, pos, 'work', `<span class="jobic">${icon(j.c.job.icon)}</span><div class="col"><span class="stage">${stage}</span><div class="prog"><i style="width:${p.toFixed(0)}%"></i></div></div><span class="t">${mmss(j.remaining / L.speedOf(b))}</span>`, 'speed', b.id);
         } else if (j.state === 'done') {
           const html = j.c.job.kind === 'restore' ? `<span class="jobic">${icon('garagem')}</span>Restaurado!` : coin(Math.round(j.c.job.pay * (1 + L.tipBonus(state))));
-          setBubble(seen, 'b' + b.id, pos, 'done', html, 'collect', b.id);
+          setBubble(seen, 'b' + b.id, pos, 'done', html, 'collect', b.id, j.c.job.kind === 'restore' ? `<span class="jobic">${icon('garagem')}</span>` : '<i class="coin big"></i>');
         } else if (j.state === 'custom') {
-          setBubble(seen, 'b' + b.id, pos, 'custom', `<span class="jobic">${icon('estilo')}</span>Personalizar`, 'custom', b.id);
+          setBubble(seen, 'b' + b.id, pos, 'custom', `<span class="jobic">${icon('estilo')}</span>Personalizar`, 'custom', b.id, `<span class="jobic">${icon('estilo')}</span>`);
         }
       }
       if (b.type === 'guincho' && state.towCall && mode === 'play') {
-        setBubble(seen, 't' + b.id, screenOf(v.g.position, 4.2), 'done tow', `<span class="jobic">${icon('telefone')}</span>Chamado! <span class="t">${Math.ceil(state.towCall.expires)}s</span>`, 'tow', b.id);
+        setBubble(seen, 't' + b.id, screenOf(v.g.position, 4.2), 'done tow', `<span class="jobic">${icon('telefone')}</span>Chamado! <span class="t">${Math.ceil(state.towCall.expires)}s</span>`, 'tow', b.id, `<span class="jobic">${icon('telefone')}</span>`);
       }
       if (b.type === 'loja' && b.stored >= 5 && mode === 'play') {
         const full = b.stored >= BUILDINGS.loja.cap[b.level - 1];
@@ -323,6 +359,7 @@ function updateBubbles() {
       setBubble(seen, 'track', screenOf(world.trackSign.position, 4.6), 'sale', html, 'track', 0);
     }
   }
+  placeEdges();
   for (const [k, el] of bubbleEls) if (!seen.has(k)) { el.remove(); bubbleEls.delete(k); }
 }
 
@@ -547,7 +584,9 @@ function openCustom(bid) {
   custom = { bid, cid: c.id, spec: { ...c.car, dirt: 0, broken: false }, tab: c.job.reqs[0]?.part || 'color' };
   mode = 'custom';
   setHudMode();
-  world.focus(world.buildViews.get(bid).g.position.clone(), world.viewH / 10.5);
+  // Celular deitado: o painel fica à direita, então o carro vai para a esquerda da tela.
+  const wideShort = innerHeight < 520 && innerWidth > innerHeight;
+  world.focus(world.buildViews.get(bid).g.position.clone(), world.viewH / (wideShort ? 13 : 10.5), 0.7, wideShort ? 0.02 : 0.17, wideShort ? 0.24 : 0);
   sfx.play('pop');
   renderCustom();
 }
@@ -674,6 +713,8 @@ function startPlacement(type, moveId = null) {
   placing = { type, moveId, x: spot.x, z: spot.z };
   if (moveId) world.buildViews.get(moveId).g.visible = false;
   world.setGhost(state, type, spot.x, spot.z, moveId);
+  // Leva a câmera até a peça fantasma, para ela não ficar fora da tela (principalmente no celular).
+  if (world.ghost) world.panTo(world.ghost.holder.position.clone().add(new THREE.Vector3(1, 0, 1).multiplyScalar(world.viewH / world.zoomTarget * 0.08)));
   const d = BUILDINGS[type];
   $('#buildLabel').innerHTML = moveId ? `Mover ${d.name}` : `${d.name} · ${coin(L.costOf(state, type))}`;
   setHudMode();
@@ -728,10 +769,10 @@ function openShop(tab = 'servicos') {
       const cards = [];
       if (next) {
         const ok = state.level >= next.lvl;
-        cards.push(`<div class="card ${ok ? '' : 'locked'}"><div class="big">${icon('terreno')}</div><h4>${next.name}</h4><p>+${next.cols} colunas de terreno para crescer.</p><span class="meta">${state.land.length}/${LAND.length} comprados</span><button class="btn ${ok ? 'yellow' : 'gray'}" data-exp="land" ${!ok || state.coins < next.cost ? 'disabled' : ''}>${ok ? coin(next.cost) : `🔒 Nível ${next.lvl}`}</button></div>`);
-      } else cards.push(`<div class="card"><div class="big">${icon('terreno')}</div><h4>Terrenos</h4><p>Você já comprou todos os terrenos!</p></div>`);
+        cards.push(`<div class="card shopcard ${ok ? '' : 'locked'}"><div class="big">${icon('terreno')}</div><div class="sinfo"><h4>${next.name}</h4><p>+${next.cols} colunas de terreno para crescer.</p><span class="meta">${state.land.length}/${LAND.length} comprados</span><button class="btn ${ok ? 'yellow' : 'gray'}" data-exp="land" ${!ok || state.coins < next.cost ? 'disabled' : ''}>${ok ? coin(next.cost) : `🔒 Nível ${next.lvl}`}</button></div></div>`);
+      } else cards.push(`<div class="card shopcard"><div class="big">${icon('terreno')}</div><div class="sinfo"><h4>Terrenos</h4><p>Você já comprou todos os terrenos!</p></div></div>`);
       const okT = state.level >= TRACK.lvl;
-      cards.push(`<div class="card ${okT ? '' : 'locked'}"><div class="big">${icon('corrida')}</div><h4>Pista de Corrida</h4><p>Corra com os carros da sua coleção por prêmios e troféus.</p><button class="btn ${state.track ? 'gray' : okT ? 'yellow' : 'gray'}" data-exp="track" ${state.track || !okT || state.coins < TRACK.cost ? 'disabled' : ''}>${state.track ? 'Construída ✔' : okT ? coin(TRACK.cost) : `🔒 Nível ${TRACK.lvl}`}</button></div>`);
+      cards.push(`<div class="card shopcard ${okT ? '' : 'locked'}"><div class="big">${icon('corrida')}</div><div class="sinfo"><h4>Pista de Corrida</h4><p>Corra com os carros da sua coleção por prêmios e troféus.</p><button class="btn ${state.track ? 'gray' : okT ? 'yellow' : 'gray'}" data-exp="track" ${state.track || !okT || state.coins < TRACK.cost ? 'disabled' : ''}>${state.track ? 'Construída ✔' : okT ? coin(TRACK.cost) : `🔒 Nível ${TRACK.lvl}`}</button></div></div>`);
       grid = cards.join('');
     } else {
       const items = Object.entries(BUILDINGS).filter(([, d]) => d.cat === tab);
@@ -743,7 +784,7 @@ function openShop(tab = 'servicos') {
         else if (can.reason === 'limit') btn = `<button class="btn gray" disabled>${can.need ? `Mais no nível ${can.need}` : 'Máximo'}</button>`;
         else btn = `<button class="btn yellow" data-buy="${id}" ${can.reason === 'coins' ? 'disabled' : ''}>${coin(L.costOf(state, id))}</button>`;
         const meta = d.decor ? `<span class="meta">⭐ +${d.fame} de fama</span>` : `<span class="meta">${cnt}/${lim || '—'} construídos</span>`;
-        return `<div class="card ${can.reason === 'level' ? 'locked' : ''}"><img class="thumb" src="${thumbs.building(id)}" alt=""><h4>${d.name}</h4>${d.desc ? `<p>${d.desc}</p>` : '<p></p>'}${meta}${btn}</div>`;
+        return `<div class="card shopcard ${can.reason === 'level' ? 'locked' : ''}"><img class="thumb" src="${thumbs.building(id)}" alt=""><div class="sinfo"><h4>${d.name}</h4>${d.desc ? `<p>${d.desc}</p>` : '<p></p>'}${meta}${btn}</div></div>`;
       }).join('');
     }
     box.innerHTML = head(`${icon('construir', 'hico')} Construir`) + `
@@ -753,7 +794,7 @@ function openShop(tab = 'servicos') {
           <button class="tab ${tab === 'decor' ? 'on' : ''}" data-shoptab="decor">${icon('polimento')} Decoração</button>
           <button class="tab ${tab === 'expansoes' ? 'on' : ''}" data-shoptab="expansoes">${icon('terreno')} Expansões</button>
         </div>
-        <div class="grid">${grid}</div>
+        <div class="grid shopgrid">${grid}</div>
         <div class="reqnote" style="text-align:center">⭐ Fama traz clientes mais rápido e aumenta as gorjetas.</div>
       </div>`;
     box.querySelectorAll('[data-shoptab]').forEach((b) => b.onclick = () => { sfx.play('click'); tab = b.dataset.shoptab; rerender(render); });
@@ -851,6 +892,7 @@ const setSoundIcons = () => {
   $('#btnMusic').innerHTML = icon('musica');
   $('#btnMusic').classList.toggle('off', !sfx.musicOn);
 };
+ctx.onSettings = () => setSoundIcons();
 $('#btnMute').addEventListener('click', () => { sfx.toggle(); setSoundIcons(); });
 $('#btnMusic').addEventListener('click', () => { sfx.toggleMusic(); setSoundIcons(); toast(sfx.musicOn ? '🎵 Música ligada' : 'Música desligada'); });
 setSoundIcons();

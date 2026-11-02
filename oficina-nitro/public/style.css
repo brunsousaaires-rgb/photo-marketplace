@@ -459,3 +459,96 @@ button.chip { cursor: pointer; }
 /* Clima chuvoso: leve névoa azulada por cima da cena */
 #rainFx { position: fixed; inset: 0; pointer-events: none; z-index: 3; background: linear-gradient(rgba(60,80,110,.35), rgba(60,80,110,.15)); opacity: 0; transition: opacity 2s; }
 #rainFx.on { opacity: 1; }
+
+/* ===================== Atualização 4: celular ===================== */
+/* Setinha na borda da tela para o que está fora da vista (cliente esperando, serviço pronto, chamado). */
+.bub .arr { display: none; }
+.bub.edge { z-index: 2; }
+.bub.edge .in { width: 58px; height: 58px; padding: 0; border-radius: 50%; justify-content: center; gap: 0; flex-direction: column; animation: popin .35s cubic-bezier(.2,1.8,.4,1); box-shadow: 0 3px 0 var(--ink), 0 0 0 4px rgba(255,255,255,.35); }
+.bub.edge .in::after { display: none; }
+.bub.edge .face { width: 32px; height: 32px; }
+.bub.edge .face.char { width: 34px; height: 34px; }
+.bub.edge .face.char .portrait { width: 30px; height: 30px; }
+.bub.edge .face.char .ring { width: 38px; height: 38px; }
+.bub.edge .jobic { position: absolute; right: -8px; bottom: -6px; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); display: grid; place-items: center; }
+.bub.edge .jobic .svgi { width: 18px; height: 18px; }
+.bub.edge.done .in, .bub.edge.custom .in { animation: popin .35s cubic-bezier(.2,1.8,.4,1), hop 1s .35s infinite; }
+.bub.edge.done .jobic, .bub.edge.custom .jobic { position: static; width: auto; height: auto; border: 0; background: none; }
+.bub.edge.done .jobic .svgi, .bub.edge.custom .jobic .svgi { width: 32px; height: 32px; }
+.bub.edge .coin.big { font-size: 30px; }
+.bub.edge .arr { display: block; position: absolute; left: 50%; top: 50%; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 13px solid var(--ink); transform: translate(-50%, -50%) rotate(var(--a, 0rad)) translateX(35px); pointer-events: none; }
+.bub.edge.urgent .in { animation: popin .35s cubic-bezier(.2,1.8,.4,1), shake .4s infinite; }
+
+/* Cartão da loja: em cima a imagem (computador); no celular vira linha compacta. */
+.shopcard .sinfo { display: contents; }
+.btn .bl { white-space: nowrap; }
+
+/* Configurações no Menu */
+.settings { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding-top: 2px; }
+.setting { font: inherit; font-size: 14px; color: var(--ink); background: #fff; border: 3px solid var(--ink); border-radius: 14px; padding: 7px 12px 7px 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 3px 0 var(--ink); cursor: pointer; }
+.setting i { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--ink); background: #e3e8f0; display: grid; place-items: center; font-style: normal; font-size: 12px; color: #fff; }
+.setting.on i { background: var(--green); }
+.setting:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+
+@media (max-width: 600px) {
+  /* Música e efeitos ficam no Menu: canto de cima mais limpo. */
+  #btnMusic, #btnMute { display: none; }
+  /* Abas em uma linha só, rolando para o lado se precisar. */
+  .mtabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px 2px 4px; }
+  .mtabs::-webkit-scrollbar { display: none; }
+  .mtabs .tab { padding: 7px 10px; font-size: 14px; white-space: nowrap; }
+  .mhead { padding: 10px 52px 10px 14px; }
+  .mhead h2 { font-size: 22px; }
+  .mbody { padding: 12px; }
+  #modal { padding: 10px; }
+  /* Loja em lista: imagem à esquerda, texto e preço à direita. */
+  .grid.shopgrid { grid-template-columns: 1fr; gap: 10px; }
+  .shopcard { flex-direction: row; text-align: left; align-items: center; gap: 10px; padding: 8px 10px; }
+  .shopcard .thumb, .shopcard .big { width: 82px; max-width: 82px; flex: none; font-size: 54px; text-align: center; }
+  .shopcard .sinfo { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; align-items: stretch; }
+  .shopcard .sinfo p { flex: none; }
+  .shopcard .btn { font-size: 16px; padding: 7px 10px; margin-top: 3px; }
+  /* Botão com rótulo em cima e preço embaixo (ex.: Contratar). */
+  .card .btn.twoline { flex-wrap: wrap; row-gap: 0; line-height: 1.15; padding: 6px 6px; }
+  .btn .bl { flex-basis: 100%; text-align: center; font-size: 13px; }
+  .card h4 { font-size: 16px; }
+}
+
+/* Celular deitado (tela baixa): personalização em painel lateral, carro visível à esquerda. */
+@media (max-height: 520px) and (orientation: landscape) {
+  #sheet { left: auto; right: 0; top: 0; bottom: 0; transform: none; width: min(440px, 52vw); border-radius: 24px 0 0 24px; border-bottom: 4px solid var(--ink); border-right: 0; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) 12px; animation: slidein .35s cubic-bezier(.2,1.3,.4,1); gap: 8px; }
+  @keyframes slidein { from { transform: translateX(100%); } }
+  #tabs { flex: none; }
+  .tab { padding: 4px 2px; font-size: 12px; min-width: 0; }
+  .tab .svgi { width: 20px; height: 20px; }
+  #options { flex: 1; min-height: 0; flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; align-content: flex-start; gap: 8px; }
+  .opt { width: 74px; height: 88px; }
+  .opt .pimg { width: 50px; height: 50px; }
+  .opt .swatch { width: 38px; height: 38px; }
+  #sheetFoot .btn { padding: 8px 12px; font-size: 18px; }
+  #reqCard { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); left: calc(10px + env(safe-area-inset-left, 0px)); transform: none; width: min(380px, calc(46vw - 20px)); padding: 8px 10px; animation: none; }
+  body[data-mode="custom"] #res, body[data-mode="custom"] #lvl { display: none; }
+  /* Janelas: cabeçalho mais baixo para sobrar espaço. */
+  .mhead { padding: 7px 52px 7px 14px; }
+  .mhead h2 { font-size: 20px; }
+  .mclose { width: 34px; height: 34px; font-size: 16px; }
+  #modal { padding: 8px; }
+  #modalBox { max-height: calc(100% - 8px); }
+  .mbody { padding: 10px; gap: 10px; }
+  .grid.shopgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shopcard { flex-direction: row; text-align: left; align-items: center; gap: 10px; padding: 8px 10px; }
+  .shopcard .thumb, .shopcard .big { width: 74px; max-width: 74px; flex: none; font-size: 48px; text-align: center; }
+  .shopcard .sinfo { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; align-items: stretch; }
+  .shopcard .sinfo p { flex: none; }
+  .shopcard .btn { font-size: 15px; padding: 6px 8px; }
+  .round-btn { width: 66px; height: 66px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .round-btn .ico .svgi { width: 32px; height: 32px; }
+  .round-btn .lbl { font-size: 12px; }
+  .round-btn.orange { left: calc(86px + env(safe-area-inset-left, 0px)); }
+  .round-btn.purple { left: calc(158px + env(safe-area-inset-left, 0px)); }
+  #dialog { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  #buildBar { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 400px) {
+  .tab { font-size: 11px; letter-spacing: -.2px; }
+}

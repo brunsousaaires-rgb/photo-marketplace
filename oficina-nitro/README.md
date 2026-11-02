@@ -41,6 +41,10 @@ npm test           # simula 60 minutos de jogo automático e confere as regras
 | Tira **fotos** | Estúdio com 4 cenários e 4 ângulos para salvar a foto do carro |
 | Joga **online** | Visita e curte a oficina dos amigos, desafia o melhor carro deles na pista, vota no **concurso semanal** do carro mais bonito (os 3 primeiros ganham caixas) e salva o jogo na nuvem |
 
+**Trânsito de verdade:** nenhum carro atravessa outro. As vagas de espera nunca ficam na frente da entrada de um box. A rua tem mão e contramão, os carros freiam e seguem o da frente, olham para trás antes de entrar na faixa e reservam o espaço da manobra. Quem chegou primeiro tem a preferência, e retornos em U, saídas de ré e pedestres são respeitados. Na pista, os carros ultrapassam pela outra faixa ou seguem colados atrás, inclusive ao dar volta em retardatários.
+
+**No celular:** quando um cliente esperando, um serviço pronto ou um chamado fica fora da tela, aparece uma setinha na borda; é só tocar nela. A loja vira uma lista compacta, a câmera vai até a construção que você está posicionando e, com o celular deitado, a Cabine de Estilo abre em painel lateral para o carro continuar visível. O Menu ganhou configurações de música, efeitos, vibração (Android) e tela cheia.
+
 **Para o jogador voltar:** missões que se renovam, presente diário com sequência de dias, loja e obras que continuam enquanto você está fora (até 8 h), dicas de novidades a cada nível, campeonatos cada vez mais difíceis e uma coleção de carros para completar.
 
 **Som:** música de fundo própria (composta e tocada pelo jogo, sem arquivos), mais abafada à noite, passarinhos de dia e grilos à noite. Música e efeitos têm botões separados.
@@ -58,7 +62,8 @@ public/src/
   logic.js    regras e economia — funções puras sobre um estado JSON (sem 3D e sem DOM)
   models.js   modelos 3D feitos em código: carros, pessoas, construções, decoração, pista
   world.js    cena 3D: câmera, terreno expansível, dia/noite, trânsito, pedestres, obras, efeitos
-  race.js     corrida: física simples, IA dos rivais, nitro, câmera seguindo
+  traffic.js  trânsito: corpos dos carros, freio, preferência, entrada na faixa, sem sobreposição
+  race.js     corrida: física simples, IA dos rivais, ultrapassagem, nitro, câmera seguindo
   garage.js   garagem: coleção, leilão, preparação, inscrição nas corridas
   preview.js  miniaturas 3D das peças/construções e visualizador giratório da garagem
   icons.js    ícones desenhados em SVG

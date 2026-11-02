@@ -36,11 +36,34 @@ export function openMenu(ctx, { openSocial }) {
     ['evento', 'Evento da semana', L.currentEvent().name, () => openEvent(ctx)],
     ['amigos', 'Online', ctx.online.on ? 'Amigos, concurso e nuvem' : 'Ver como jogar online', () => openSocial()],
   ];
-  ctx.openModal((box) => {
+  const render = (box) => {
+    const sf = ctx.sfx;
+    const fs = document.fullscreenEnabled && document.documentElement.requestFullscreen;
+    const setting = (key, label, on) => `<button class="setting ${on ? 'on' : ''}" data-set="${key}"><i>${on ? '✔' : ''}</i>${label}</button>`;
     box.innerHTML = ctx.head(`${icon('menu', 'hico')} Menu`) + `<div class="mbody"><div class="menugrid">${items.map(([ic, t, sub], i) => `
-      <button class="card menuitem" data-mi="${i}">${icon(ic, 'mico')}<h4>${t}</h4><span class="meta">${sub}</span>${ic === 'caixa' && crateTotal(s) ? `<i class="dot">${crateTotal(s)}</i>` : ''}</button>`).join('')}</div></div>`;
+      <button class="card menuitem" data-mi="${i}">${icon(ic, 'mico')}<h4>${t}</h4><span class="meta">${sub}</span>${ic === 'caixa' && crateTotal(s) ? `<i class="dot">${crateTotal(s)}</i>` : ''}</button>`).join('')}</div>
+      <div class="settings">
+        ${setting('music', 'Música', sf.musicOn)}
+        ${setting('sound', 'Efeitos', !sf.muted)}
+        ${sf.canBuzz ? setting('haptics', 'Vibração', sf.haptics) : ''}
+        ${fs ? setting('full', 'Tela cheia', !!document.fullscreenElement) : ''}
+      </div></div>`;
     box.querySelectorAll('[data-mi]').forEach((b) => b.onclick = () => { ctx.sfx.play('click'); ctx.closeModal(); setTimeout(items[Number(b.dataset.mi)][3], 140); });
-  });
+    box.querySelectorAll('[data-set]').forEach((b) => b.onclick = async () => {
+      const k = b.dataset.set;
+      if (k === 'music') sf.toggleMusic();
+      if (k === 'sound') sf.toggle();
+      if (k === 'haptics') sf.toggleHaptics();
+      if (k === 'full') {
+        try { document.fullscreenElement ? await document.exitFullscreen() : await document.documentElement.requestFullscreen(); } catch {}
+      }
+      sf.play('click');
+      ctx.onSettings?.();
+      box.innerHTML = '';
+      render(box);
+    });
+  };
+  ctx.openModal(render);
 }
 
 // ---------- clientes fixos ----------
@@ -201,7 +224,7 @@ export function openStaff(ctx) {
         if (m) btn = m.level >= 3 ? '<button class="btn gray" disabled>Nível máximo</button>' : `<button class="btn green" data-train="${id}" ${s.coins < L.trainCost(m) ? 'disabled' : ''}>Treinar ${ctx.coin(L.trainCost(m))}</button>`;
         else if (s.level < r.lvl) btn = `<button class="btn gray" disabled>🔒 Nível ${r.lvl}</button>`;
         else if (s.staff.length >= size) btn = '<button class="btn gray" disabled>Equipe cheia</button>';
-        else btn = `<button class="btn yellow" data-hire="${id}" ${s.coins < r.cost ? 'disabled' : ''}>Contratar ${ctx.coin(r.cost)}</button>`;
+        else btn = `<button class="btn yellow twoline" data-hire="${id}" ${s.coins < r.cost ? 'disabled' : ''}><span class="bl">Contratar</span> ${ctx.coin(r.cost)}</button>`;
         return `<div class="card ${!m && s.level < r.lvl ? 'locked' : ''}"><div class="staffic" style="background:${s.uniform}">${icon(r.icon)}</div>
           <h4>${m ? `${m.name}` : r.name}</h4>${m ? `<span class="meta">${r.name}</span><span class="lvstars">${'★'.repeat(m.level)}<span style="color:#c3cbd8">${'★'.repeat(3 - m.level)}</span></span>` : ''}
           <p>${r.desc}: <b>${eff}</b>${r.fame ? ` e +${Math.round(r.fame * (m ? STAFF_LEVEL_MULT[m.level - 1] : 1))} de fama` : ''}</p>${btn}</div>`;

@@ -293,9 +293,11 @@ export class World {
     this.zoomTarget = Math.max(0.5, Math.min(2.6, this.zoomTarget * f));
   }
 
-  focus(pos, zoom = 2.3, dur = 0.7, offset = 0.17) {
+  // offset: sobe o alvo na tela (abre espaço embaixo); side: empurra o alvo para a esquerda da tela.
+  focus(pos, zoom = 2.3, dur = 0.7, offset = 0.17, side = 0) {
     this.saved = this.saved || { target: this.target.clone(), zoom: this.zoomTarget };
     const t = pos.clone().add(new THREE.Vector3(1, 0, 1).normalize().multiplyScalar((this.viewH / zoom) * offset));
+    if (side) t.add(new THREE.Vector3(1, 0, -1).normalize().multiplyScalar((this.viewH * this.aspect / zoom) * side));
     this.focusTween = { from: this.target.clone(), to: t, z0: this.zoom, z1: zoom, t: 0, dur };
   }
 
