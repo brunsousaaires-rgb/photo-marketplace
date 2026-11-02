@@ -3,13 +3,14 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TILE, GRID_H, MAX_W, BUILDINGS, CAR_TYPES, PARTS, LAND, CHARACTERS } from './data.js';
 import {
-  buildCar, buildBuilding, buildTree, buildHouse, buildPerson, buildScaffold, buildSaleSign, buildTrack, makeTrackPath,
+  buildCar, buildBuilding, buildTree, buildHouse, disposeCar, buildPerson, buildScaffold, buildSaleSign, buildTrack, makeTrackPath,
   animatePerson, mat, mesh, rbox, sph, box, cyl, ghostify, NIGHT, BAY_SPOT, STAFF_PATH,
 } from './models.js';
 export { LOT_D_EXPORT as LOT_D };
 import { laneTiles, canPlace, QUEUE_SLOTS, parcelsOf, landStatus, lotBounds } from './logic.js';
 import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
 import { City, grassTexture } from './city.js';
+import { buildRoads, routePoints, VEHICLE_KINDS } from './roads.js';
 
 const LOT_D = GRID_H * TILE;
 const LOT_D_EXPORT = LOT_D;
@@ -106,12 +107,15 @@ export class World {
     this.ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.ghost = null;
     this.trafficIn = 2;
+    this.trafficTarget = 6; // entre 4 e 8 veículos ao mesmo tempo
+    this.trafficRetarget = 25;
     this.walkerIn = 1;
 
     const pm = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     pm.dispose();
     this.staffViews = [];
+    this.net = buildRoads({ D: LOT_D, passZ: PASS_Z, trafZ: TRAFFIC_Z });
     this.rainK = 0;
     this.initRain();
     this.buildTerrain();
@@ -648,11 +652,22 @@ export class World {
     return [[u, PASS_Z], [u + 2.1, MID_UT, false, false, clear, -1, true], [u, TRAFFIC_Z, false, false, null, -1, true]];
   }
 
+  // Andando pela mão da direita de x0 até x1: para na faixa de parada de cada cruzamento no caminho
+  // e só atravessa com sinal verde, cruzamento livre e espaço do outro lado (igual aos carros da cidade).
+  passThrough(x0, x1) {
+    const pts = [];
+    const net = this.net;
+    for (const [J, node, a, b] of [[JUNCTIONS[0], net.nodes.I1, net.lanes.AE1, net.lanes.AE2], [JUNCTIONS[1], net.nodes.I2, net.lanes.AE2, net.lanes.AE3]]) {
+      if (x0 < J - 5.6 && x1 > J + 5.6) pts.push([J - 5.6, PASS_Z], [J + 5.6, PASS_Z, false, false, this.crossingHold(a, b, node)]);
+    }
+    return pts;
+  }
+
   routeToSlot(x0, sx) {
     // Só estaciona quando a vaga está vazia de verdade (o cliente anterior pode ainda estar saindo).
     const free = (v) => this.areaBusy({ x: sx, z: QUEUE_Z, ux: 1, uz: 0, hl: SLOT_HALF + 0.3, hw: 1.3 }, v);
     const park = [[sx - 2.2, QUEUE_Z + 0.4, false, true, free], [sx, QUEUE_Z, false, true]];
-    if (sx - 4.6 >= x0 + 0.5) return [[sx - 4.6, PASS_Z], ...park];
+    if (sx - 4.6 >= x0 + 0.5) return [...this.passThrough(x0, sx - 4.6), [sx - 4.6, PASS_Z], ...park];
     const u = Math.max(x0 + 1, sx + 6);
     return [...this.uturn(u), [sx + 4.6, TRAFFIC_Z], [sx + 2.2, QUEUE_Z + 0.4, false, true], [sx, QUEUE_Z, false, true]];
   }
@@ -663,7 +678,7 @@ export class World {
     // Só entra quando a entrada do box está livre (o carro anterior já saiu).
     const hold = () => this.drivewayBusy(p, v);
     const tail = [[p.x, QUEUE_Z + 0.3, false, false, hold], [p.x, front + 0.5], [p.x, p.z]];
-    if (p.x - 4.2 >= x0 + 0.5) return [[p.x - 4.2, PASS_Z], ...tail];
+    if (p.x - 4.2 >= x0 + 0.5) return [...this.passThrough(x0, p.x - 4.2), [p.x - 4.2, PASS_Z], ...tail];
     const u = Math.max(x0 + 1, p.x + 5.5);
     return [...this.uturn(u), [p.x + 4.2, TRAFFIC_Z], ...tail];
   }
@@ -731,7 +746,8 @@ export class World {
     v.parked = false;
     v.atBay = null;
     v.hop = happy ? 1 : 0;
-    this.drive(v, [...st.pts, [140, PASS_Z]], () => { this.scene.remove(v.g); this.leaving.splice(this.leaving.indexOf(v), 1); });
+    // Atravessa os cruzamentos como todo mundo (faixa de parada, sinal, vez).
+    this.drive(v, [...st.pts, ...this.passThrough(st.x, 140), [140, PASS_Z]], () => { this.scene.remove(v.g); disposeCar(v.g); this.leaving.splice(this.leaving.indexOf(v), 1); });
     v.speed = happy ? 14 : 16;
     this.leaving.push(v);
   }
@@ -826,17 +842,11 @@ export class World {
   // ---------- vida na rua ----------
   updateStreet(dt) {
     this.trafficIn -= dt;
-    if (this.trafficIn <= 0 && this.traffic.length < 5 && !this.trafficPaused) {
-      this.trafficIn = rnd(3, 8);
-      const spec = { type: pickOne(CAR_TYPES).id, color: pickOne(PARTS.color).id, wheels: pickOne(['padrao', 'padrao', 'esportiva']), spoiler: 'nenhum', neon: 'nenhum', decal: Math.random() < 0.2 ? 'listras' : 'nenhum' };
-      const g = buildCar(spec);
-      g.position.set(this.spawnX(120, TRAFFIC_Z, 1), 0, TRAFFIC_Z);
-      g.rotation.y = -Math.PI / 2;
-      this.scene.add(g);
-      const sp = rnd(8, 13);
-      const t = { g, path: [], speed: sp, cur: sp, heading: -Math.PI / 2, prio: ++SERIAL, traffic: true };
-      this.drive(t, [[-60, TRAFFIC_Z]], () => { this.scene.remove(g); const i = this.traffic.indexOf(t); if (i >= 0) this.traffic.splice(i, 1); });
-      this.traffic.push(t);
+    this.trafficRetarget -= dt;
+    if (this.trafficRetarget <= 0) { this.trafficRetarget = rnd(18, 40); this.trafficTarget = 4 + Math.floor(Math.random() * 5); }
+    if (this.trafficIn <= 0 && !this.trafficPaused && this.traffic.length < this.trafficTarget) {
+      this.trafficIn = rnd(1.2, 4.5);
+      this.spawnTraffic();
     }
     for (let i = 0; i < this.traffic.length; i++) {
       const t = this.traffic[i], u = t.g.userData;
@@ -874,6 +884,132 @@ export class World {
       animatePerson(w.p, w.waiting ? this.time + w.ph : this.time * (w.v / 1.6) + w.ph, w.waiting ? 'idle' : 'walk');
       if (w.p.position.x > 115 || w.p.position.x < -45) { this.scene.remove(w.p); this.walkers.splice(i, 1); }
     }
+  }
+
+  // ---------- trânsito da cidade ----------
+  // Põe um veículo numa rota sorteada (entra por uma ponta do mapa e sai por outra).
+  spawnTraffic(kindName = null, routeIds = null) {
+    const net = this.net;
+    const kinds = Object.entries(VEHICLE_KINDS);
+    let kind = kindName ? [kindName, VEHICLE_KINDS[kindName]] : null;
+    if (!kind) {
+      let r = Math.random() * kinds.reduce((a, [, k]) => a + k.weight, 0);
+      kind = kinds.find(([, k]) => (r -= k.weight) <= 0) || kinds[0];
+    }
+    // Rotas pela avenida aparecem mais (é a rua principal).
+    const route = routeIds || (() => {
+      const w = net.routes.map((r) => (r[0].startsWith('A') ? 2 : 1));
+      let x = Math.random() * w.reduce((a, b) => a + b, 0);
+      return net.routes[w.findIndex((q) => (x -= q) <= 0)] || net.routes[0];
+    })();
+    const pts = routePoints(net, route, (a, b, node) => this.crossingHold(a, b, node));
+    const p0 = pts[0];
+    const all = [...this.carViews.values(), ...this.leaving, ...this.traffic];
+    if (all.some((o) => Math.hypot(o.g.position.x - p0.x, o.g.position.z - p0.z) < 7)) return null; // entrada ocupada
+    const [name, k] = kind;
+    const colors = PARTS.color.filter((c) => !c.rare && c.lvl <= 20).map((c) => c.id);
+    const spec = { type: 'sedan', color: pickOne(colors), wheels: pickOne(['padrao', 'padrao', 'esportiva']), spoiler: 'nenhum', neon: 'nenhum', decal: Math.random() < 0.15 ? 'listras' : 'nenhum', ...k.spec(pickOne) };
+    const g = buildCar(spec);
+    g.position.set(p0.x, 0, p0.z);
+    const h = Math.atan2(pts[1].x - p0.x, pts[1].z - p0.z);
+    g.rotation.y = h;
+    this.scene.add(g);
+    const sp = rnd(k.speed[0], k.speed[1]);
+    const t = { g, path: [], speed: sp, cur: sp * 0.8, heading: h, prio: ++SERIAL, traffic: true, kind: name, route };
+    this.drive(t, pts.slice(1).map((p) => [p.x, p.z, false, false, p.hold]), () => this.removeTraffic(t));
+    t.path.forEach((q, i) => { q.vmax = pts[i + 1].vmax; q.watch = null; });
+    this.traffic.push(t);
+    return t;
+  }
+
+  removeTraffic(t) {
+    this.scene.remove(t.g);
+    disposeCar(t.g);
+    const i = this.traffic.indexOf(t);
+    if (i >= 0) this.traffic.splice(i, 1);
+  }
+
+  // Espera antes de entrar num cruzamento: semáforo (I2) ou preferência da via principal (I1, I4).
+  crossingHold(laneIn, laneOut, node) {
+    if (!node) return null;
+    const axis = Math.abs(laneIn.dir[0]) > 0.5 ? 'x' : 'z';
+    const straight = laneIn.dir[0] * laneOut.dir[0] + laneIn.dir[1] * laneOut.dir[1] > 0.9;
+    // Nunca entra no cruzamento se não houver espaço do outro lado (não fecha o cruzamento),
+    // nem enquanto alguém estiver atravessando na frente.
+    const full = (v) => this.exitBlocked(laneOut, v) || this.crossingInBox(node, laneIn, v);
+    let wait;
+    // Semáforo: espera o verde; quem vai virar ainda dá a vez para quem vem de frente.
+    if (node.signal) wait = (v) => !this.city.signalGo(axis) || full(v) || (!straight && this.mustYield(node, laneIn, v, axis));
+    // Preferencial seguindo reto: só confere se há espaço do outro lado.
+    else if (!node.main || (axis === node.main && straight)) wait = full;
+    else wait = (v) => full(v) || this.mustYield(node, laneIn, v, node.main);
+    // Reserva do cruzamento: quem entra marca o movimento; movimento que cruza com ele espera.
+    const mv = { inDir: laneIn.dir, outDir: laneOut.dir, lane: laneIn.id, straight };
+    return (v) => {
+      if (this.reservedAgainst(node, mv, v) || wait(v)) return true;
+      (node.occ ||= new Map()).set(v, { ...mv, t: this.time, entered: false });
+      return false;
+    };
+  }
+
+  // Algum carro já reservou o cruzamento com um movimento que cruza este?
+  reservedAgainst(node, mv, self) {
+    if (!node.occ) return false;
+    for (const [o, m] of node.occ) {
+      const q = o.g.position;
+      const inside = Math.abs(q.x - node.x) < node.hx && Math.abs(q.z - node.z) < node.hz;
+      if (inside) m.entered = true;
+      const gone = !o.path?.length || (m.entered && !inside) || this.time - m.t > 10;
+      if (gone || o === self) { if (gone) node.occ.delete(o); continue; }
+      if (m.lane === mv.lane) continue; // mesma faixa: só segue o da frente
+      const opposite = m.inDir[0] * mv.inDir[0] + m.inDir[1] * mv.inDir[1] < -0.9;
+      if (opposite && m.straight && mv.straight) continue; // retas de mão contrária não se cruzam
+      return true;
+    }
+    return false;
+  }
+
+  // Alguém atravessando o cruzamento em outra direção (virando ou na transversal)?
+  crossingInBox(node, laneIn, self) {
+    for (const o of [...this.carViews.values(), ...this.leaving, ...this.traffic]) {
+      if (o === self || o.holding || o.parked) continue;
+      const q = o.g.position;
+      if (Math.abs(q.x - node.x) > node.hx + 0.6 || Math.abs(q.z - node.z) > node.hz + 0.6) continue;
+      const d = (o.mx || 0) * laneIn.dir[0] + (o.mz || 0) * laneIn.dir[1];
+      if (Math.abs(d) < 0.95 || (o.cur || 0) < 0.3) return true;
+    }
+    return false;
+  }
+
+  // Tem carro parado (ou quase) logo no começo da faixa de saída?
+  exitBlocked(laneOut, self) {
+    const [sx, sz] = laneOut.pts[0], [dx, dz] = laneOut.dir;
+    for (const o of [...this.carViews.values(), ...this.leaving, ...this.traffic]) {
+      if (o === self) continue;
+      const rx = o.g.position.x - sx, rz = o.g.position.z - sz;
+      const along = rx * dx + rz * dz, side = Math.abs(rx * dz - rz * dx);
+      if (along > -1 && along < 7.5 && side < 1.4 && (o.cur || 0) < 2.5) return true;
+    }
+    return false;
+  }
+
+  // Dá a vez: cruzamento ocupado ou alguém da preferencial chegando perto.
+  mustYield(node, laneIn, self, axis = node.main) {
+    const all = [...this.carViews.values(), ...this.leaving, ...this.traffic];
+    // Só conta quem está atravessando de verdade (o centro do carro no miolo do cruzamento);
+    // quem está parado na faixa de parada esperando não ocupa o cruzamento.
+    const inBox = (o) => Math.abs(o.g.position.x - node.x) < node.hx - 0.4 && Math.abs(o.g.position.z - node.z) < node.hz - 0.4;
+    const zones = Object.values(this.net.lanes).filter((l) => l.to === node.id && l !== laneIn && (Math.abs(l.dir[0]) > 0.5 ? 'x' : 'z') === axis).map((l) => {
+      const e = l.pts[1];
+      return { x: e[0] - l.dir[0] * 12, z: e[1] - l.dir[1] * 12, ux: l.dir[0], uz: l.dir[1], hl: 12, hw: 1.1 };
+    });
+    for (const o of all) {
+      if (o === self || o.parked || !o.body) continue;
+      if (o.holding) continue;
+      if (inBox(o)) return true;
+      if ((o.cur || 0) > 0.5 && zones.some((zn) => hit(zn, o.body))) return true;
+    }
+    return false;
   }
 
   // ---------- dia e noite ----------

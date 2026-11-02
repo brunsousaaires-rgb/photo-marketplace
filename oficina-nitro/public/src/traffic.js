@@ -71,6 +71,7 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
     if (dist > 1e-4) { v.mx = dx / dist; v.mz = dz / dist; }
     const last = v.path.length === 1;
     v.want = last ? Math.min(v.speed, 1.5 + dist * 2.4) : v.speed;
+    if (p.vmax) v.want = Math.min(v.want, p.vmax); // devagar nas curvas
     if (v.ghost > 0) { v.ghost -= dt; continue; }
     if (v.mx === undefined) continue;
     const look = 0.9 + (v.cur || 0) * 0.3;
@@ -154,9 +155,12 @@ export function stepVehicles(list, dt, { people = [], frozen = () => false, lerp
     const cur = v.cur || 0;
     const rate = target < cur ? (v.near ? 70 : 32) : 11;
     v.cur = approach(cur, target, rate * dt);
-    // Válvula de segurança: se ficou travado muito tempo, passa devagar e o jogo nunca congela.
-    v.wait = v.cur < 0.05 && (v.blk || v.blkPerson) ? (v.wait || 0) + dt : 0;
-    if (v.wait > 6) { v.ghost = 2.5; v.wait = 0; }
+    // Válvula de segurança: se ficou travado muito tempo sem motivo, passa devagar e o jogo nunca congela.
+    // Fila legítima (alguém lá na frente esperando sinal, vez ou entrada) não conta.
+    let legit = false;
+    for (let o = v.blk, k = 0; o && k < 12; o = o.blk, k++) if (o.holding) { legit = true; break; }
+    v.wait = v.cur < 0.05 && (v.blk || v.blkPerson) && !legit ? (v.wait || 0) + dt : 0;
+    if (v.wait > 8) { v.ghost = 2.5; v.wait = 0; }
     const p = v.path[0], g = v.g;
     const step = v.cur * dt;
     if (v.dist > 1e-3 && step > 0) {

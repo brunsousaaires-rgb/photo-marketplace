@@ -165,6 +165,7 @@ export const CAR_TYPES = [
   { id: 'pickup', name: 'Picape', lvl: 3, mult: 1.3, speed: 12.2, value: 1500 },
   { id: 'esportivo', name: 'Esportivo', lvl: 5, mult: 1.7, speed: 15, value: 2600 },
   { id: 'van', name: 'Van', lvl: 7, mult: 1.45, speed: 11.8, value: 1700 },
+  { id: 'jipe', name: 'Jipe', lvl: 4, mult: 1.35, speed: 12.6, value: 1600 },
 ];
 
 // Preparação de desempenho dos carros da coleção.

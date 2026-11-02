@@ -783,8 +783,20 @@ export class City {
     this.scene.add(this.static, this.dyn);
   }
 
+  // Ciclo de 18 s: avenida verde 8 s, amarelo 2 s; transversal verde 6 s, amarelo 2 s.
+  signalState(axis) {
+    const c = this.t % 18;
+    if (axis === 'x') return c < 8 ? 'green' : c < 10 ? 'yellow' : 'red';
+    return c >= 10 && c < 16 ? 'green' : c >= 16 ? 'yellow' : 'red';
+  }
+
+  signalGo(axis) {
+    return this.signalState(axis) === 'green';
+  }
+
   update(dt, night = 0) {
-    if (!this.dyn) return;
+    this.t = this.t || 0;
+    if (!this.dyn) { this.t += dt; return; }
     this.t += dt;
     const T = this.t;
     // Chafariz: gotas em arco caindo na bacia + ondinhas.
@@ -801,12 +813,11 @@ export class City {
       rp.m.scale.setScalar(0.6 + rp.t * 2);
       rp.m.material.opacity = 0.55 * (1 - rp.t);
     }
-    // Semáforos: verde, amarelo, vermelho (os dois desencontrados).
-    const cyc = (T % 14);
-    const st = cyc < 6 ? 2 : cyc < 8 ? 1 : 0;
-    this.tlights.forEach((m, i) => { m.emissiveIntensity = i === st ? 2.2 : 0.05; });
-    const st2 = st === 2 ? 0 : st === 0 ? 2 : 0;
-    this.tlights2.forEach((m, i) => { m.emissiveIntensity = i === st2 ? 2.2 : 0.05; });
+    // Semáforos de verdade: a avenida e a rua transversal se revezam (com amarelo e um respiro).
+    const st = this.signalState('x'), st2 = this.signalState('z');
+    const idx = { red: 0, yellow: 1, green: 2 };
+    this.tlights.forEach((m, i) => { m.emissiveIntensity = i === idx[st] ? 2.2 : 0.05; });
+    this.tlights2.forEach((m, i) => { m.emissiveIntensity = i === idx[st2] ? 2.2 : 0.05; });
     // Patinhos nadando em volta do lago.
     const pp = this.pondPos;
     this.ducks.forEach((dk, i) => {

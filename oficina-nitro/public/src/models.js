@@ -35,6 +35,17 @@ export function glow(color, dayE, nightE, dayI = 0.3, nightI = 1.6, o = {}) {
 }
 
 const geoCache = new Map();
+
+// Libera da memória o que é exclusivo de um carro (pintura, adesivos, neon) quando ele sai do mapa.
+// Geometrias e materiais compartilhados (do cache) ficam.
+export function disposeCar(g) {
+  const sharedM = new Set(matCache.values()), sharedG = new Set(geoCache.values());
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m && !sharedM.has(m) && !m.userData.keep) m.dispose();
+    if (o.geometry && !sharedG.has(o.geometry) && !o.geometry.userData.keep) o.geometry.dispose();
+  });
+}
 function cached(key, make) {
   let g = geoCache.get(key);
   if (!g) { g = make(); geoCache.set(key, g); }
@@ -145,7 +156,27 @@ const CAR_DIMS = {
   pickup: { L: 3.6, W: 1.72, H: 0.62, CL: 1.25, CZ: 0.55, CH: 0.6, bed: true },
   esportivo: { L: 3.4, W: 1.78, H: 0.42, CL: 1.3, CZ: -0.35, CH: 0.42 },
   van: { L: 3.5, W: 1.72, H: 0.62, CL: 2.75, CZ: -0.3, CH: 0.86, van: true, spoilerOnRoof: true },
+  jipe: { L: 3.25, W: 1.78, H: 0.68, CL: 1.85, CZ: -0.3, CH: 0.66, jeep: true, spoilerOnRoof: true },
 };
+
+// Brilho branco nos vidros (reflexo de desenho animado) e sombrinha de contato no chão.
+const shine = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, depthWrite: false });
+shine.userData.keep = true;
+let contactMat = null;
+function contactShadow() {
+  if (!contactMat) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(0,0,0,.55)'); grd.addColorStop(0.6, 'rgba(0,0,0,.25)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c);
+    contactMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false });
+    contactMat.userData.keep = true;
+  }
+  return contactMat;
+}
 
 export const WHEELS = {
   padrao: { r: 0.36, tw: 0.3, rim: '#c3c8d2', rimR: 0.55, rm: 0.3 },
@@ -317,6 +348,30 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
       mesh(box(0.09, CH * 0.9, 0.12), paint, sx * W * 0.41, top + CH / 2 - 0.05, CZ + sz * (CL / 2 - 0.1), body);
     }
   }
+  // Reflexos nos vidros (faixas brancas inclinadas).
+  if (!D.van) {
+    const hl = mesh(box(W * 0.1, CH * 0.62, 0.02), shine, -W * 0.18, top + CH * 0.46, CZ + CL / 2 + 0.012, body);
+    hl.rotation.z = 0.55; hl.castShadow = false;
+    const hl2 = mesh(box(W * 0.05, CH * 0.5, 0.02), shine, -W * 0.02, top + CH * 0.46, CZ + CL / 2 + 0.012, body);
+    hl2.rotation.z = 0.55; hl2.castShadow = false;
+    for (const sx of [-1, 1]) {
+      const hs = mesh(box(0.02, CH * 0.55, CL * 0.1), shine, sx * (W * 0.42 + 0.012), top + CH * 0.46, CZ + CL * 0.18, body);
+      hs.rotation.x = 0.5; hs.castShadow = false;
+    }
+  } else {
+    const hl = mesh(box(W * 0.1, 0.3, 0.02), shine, -W * 0.2, top + CH * 0.6, CZ + CL / 2 + 0.07, body);
+    hl.rotation.z = 0.55; hl.castShadow = false;
+  }
+  // Jipe: estepe na traseira e bagageiro no teto.
+  if (D.jeep) {
+    const spare = mesh(cyl(0.34, 0.34, 0.24, 16), mat('#2b2d36', { r: 0.8 }), 0, bottom + H * 0.62, -L / 2 - 0.13, body);
+    spare.rotation.x = Math.PI / 2;
+    const hub = mesh(cyl(0.16, 0.16, 0.26, 12), paint, 0, bottom + H * 0.62, -L / 2 - 0.14, body);
+    hub.rotation.x = Math.PI / 2;
+    for (const sx of [-1, 1]) mesh(rbox(0.08, 0.08, CL * 0.95, 0.03), mat('#3a3d48', { m: 0.5, r: 0.4 }), sx * W * 0.33, top + CH + 0.06, CZ, body);
+    for (const sz of [-1, 0, 1]) mesh(box(W * 0.7, 0.05, 0.07), mat('#3a3d48', { m: 0.5, r: 0.4 }), 0, top + CH + 0.1, CZ + sz * CL * 0.32, body);
+    mesh(rbox(W * 1.02, 0.14, 0.2, 0.05), mat('#3a3d48', { m: 0.5, r: 0.4 }), 0, bottom + 0.1, L / 2 + 0.06, body);
+  }
   // Retrovisores, maçanetas e linhas das portas.
   for (const sx of [-1, 1]) {
     mesh(rbox(0.12, 0.1, 0.18, 0.03), paint, sx * (W * 0.46 + 0.07), top + 0.1, CZ + CL / 2 - 0.12, body);
@@ -480,6 +535,13 @@ export function buildCar(spec, { driver = true, face = null } = {}) {
   setDirt(spec.dirt || 0);
   if (spec.rust) setRust(spec.rust);
 
+  // Sombra de contato (fica no chão, não balança com a carroceria).
+  const cs = new THREE.Mesh(plane(1, 1), contactShadow());
+  cs.rotation.x = -Math.PI / 2;
+  cs.scale.set(W * 1.35, L * 1.12, 1);
+  cs.position.y = 0.035;
+  cs.renderOrder = -1;
+  root.add(cs);
   root.userData = { body, wheels, wheelR: wd.r, paint, neon, setDirt, setRust, spec: { ...spec }, length: L, width: W };
   return root;
 }
