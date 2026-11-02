@@ -9,6 +9,7 @@ import {
 export { LOT_D_EXPORT as LOT_D };
 import { laneTiles, canPlace, QUEUE_SLOTS } from './logic.js';
 import { stepVehicles, bodyOf, personBody, hit } from './traffic.js';
+import { City, grassTexture } from './city.js';
 
 const LOT_D = GRID_H * TILE;
 const LOT_D_EXPORT = LOT_D;
@@ -117,7 +118,9 @@ export class World {
   // ---------- cenário fixo ----------
   buildTerrain() {
     const S = this.scene;
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), mat('#7ccb5b', { r: 1 }));
+    const grassM = new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 1 });
+    grassM.envMapIntensity = 0.12;
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), grassM);
     grass.rotation.x = -Math.PI / 2;
     grass.position.set(MAX_LOT_W / 2, -0.02, 0);
     grass.receiveShadow = true;
@@ -148,30 +151,12 @@ export class World {
       this.streetLights = (this.streetLights || []).concat(p.userData.lights || []);
     }
 
-    // Árvores ao redor, longe do terreno e da pista.
-    const tp = TRACK_PATH;
-    const blocked = (x, z) =>
-      (x > -3 && x < MAX_LOT_W + 3 && z > -2.5 && z < LOT_D + 1.5) ||
-      (x > tp.cx - tp.L - tp.R - 9 && x < tp.cx + tp.L + tp.R + 9 && z > tp.cz - tp.R - 14 && z < tp.cz + tp.R + 6) ||
-      (z > LOT_D && z < LOT_D + 12.5);
-    let i = 0;
-    while (i < 90) {
-      const x = rnd(-30, MAX_LOT_W + 30), z = rnd(-46, LOT_D + 30);
-      if (blocked(x, z)) continue;
-      const t = buildTree(rnd(0.9, 1.6), i);
-      t.position.set(x, 0, z);
-      t.rotation.y = rnd(0, 6);
-      S.add(t);
-      this.swaying.push(t.userData.crown);
-      i++;
-    }
-    const houses = [['#ffe0b3', '#e8473c'], ['#d6ecff', '#2f7bea'], ['#e9ffd6', '#8a5cf0'], ['#ffd6e8', '#ff8a2a'], ['#fff4c2', '#46c35a'], ['#e0e6ff', '#e8473c'], ['#ffe9d6', '#2f7bea']];
-    houses.forEach(([c1, c2], k) => {
-      const h = buildHouse(c1, c2);
-      h.position.set(-8 + k * 10, 0, LOT_D + 15.5);
-      h.rotation.y = Math.PI;
-      S.add(h);
-    });
+    // A cidade (praça, lojas, parque, campinho, árvores…) fica em city.js.
+    this.city = new City(S, { lotD: LOT_D, maxW: MAX_LOT_W, track: TRACK_PATH });
+    let built = false;
+    const go = () => { if (!built) { built = true; this.city.build(); } };
+    (document.fonts?.ready || Promise.resolve()).then(go);
+    setTimeout(go, 2500);
   }
 
   setLot(state) {
@@ -284,8 +269,8 @@ export class World {
   }
 
   clampTarget() {
-    this.target.x = Math.max(-8, Math.min(MAX_LOT_W + 8, this.target.x));
-    this.target.z = Math.max(-40, Math.min(LOT_D + 10, this.target.z));
+    this.target.x = Math.max(-34, Math.min(MAX_LOT_W + 34, this.target.x));
+    this.target.z = Math.max(-44, Math.min(LOT_D + 30, this.target.z));
   }
 
   zoomBy(f) {
@@ -826,6 +811,7 @@ export class World {
     const night = this.updateSky(dt);
     this.updateStreet(dt);
     this.updateStaff(dt);
+    this.city.update(dt, Math.max(0, this.night));
     for (let i = 0; i < this.swaying.length; i++) this.swaying[i].rotation.z = Math.sin(T * 1.2 + i) * 0.03;
 
     if (this.followCam) {
